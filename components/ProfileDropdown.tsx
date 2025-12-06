@@ -1,10 +1,11 @@
 import React from 'react';
-import { User } from '../types';
-import { Settings, LogOut } from 'lucide-react';
+import { User, UserRole } from '../types';
+import { Settings, LogOut, UserCircle } from 'lucide-react';
 
 interface ProfileDropdownProps {
   user: User;
   onManageAccount: () => void;
+  onCustomerProfile?: () => void;
   onLogout: () => void;
 }
 
@@ -14,7 +15,7 @@ const getInitials = (name?: string): string => {
   return names.length > 1 ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase() : name.substring(0, 2).toUpperCase();
 };
 
-export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ user, onManageAccount, onLogout }) => {
+export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ user, onManageAccount, onCustomerProfile, onLogout }) => {
   return (
     <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl animate-fade-in z-50">
       <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-3">
@@ -27,6 +28,12 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ user, onManage
         </div>
       </div>
       <div className="p-2">
+        {user.role === UserRole.CUSTOMER && onCustomerProfile && (
+          <button onClick={onCustomerProfile} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md">
+            <UserCircle className="w-4 h-4 text-neutral-500" />
+            <span>Customer Profile</span>
+          </button>
+        )}
         <button onClick={onManageAccount} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md">
           <Settings className="w-4 h-4 text-neutral-500" />
           <span>Manage Account</span>

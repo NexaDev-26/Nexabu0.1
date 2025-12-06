@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Message } from '../types';
 import { chatWithGemini, searchNearby, analyzeImage, quickGenerate } from '../services/geminiService';
-import { Send, MapPin, Image as ImageIcon, Loader2, BrainCircuit, X, Minimize2 } from 'lucide-react';
+import { Send, MapPin, Image as ImageIcon, Loader2, Bot, X, Minimize2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { LiveVoice } from './LiveVoice';
 
@@ -102,9 +102,10 @@ export const SmartBot: React.FC = () => {
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-6 right-6 z-50 bg-orange-600 hover:bg-orange-500 text-white p-4 rounded-full shadow-xl transition-transform hover:scale-105 ${isOpen ? 'hidden md:flex' : 'flex'}`}
+        className={`fixed bottom-4 right-4 z-50 bg-orange-600 hover:bg-orange-500 text-white p-2.5 rounded-full shadow-xl transition-all hover:scale-110 active:scale-95 ${isOpen ? 'hidden md:flex' : 'flex'}`}
+        aria-label="Open NeBu Bot"
       >
-        {isOpen ? <X className="w-8 h-8" /> : <BrainCircuit className="w-8 h-8" />}
+        {isOpen ? <X className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
       </button>
 
       {/* Chat Window */}
@@ -114,7 +115,7 @@ export const SmartBot: React.FC = () => {
           <div className="bg-neutral-950 p-4 text-white flex justify-between items-center flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="bg-neutral-800 p-2 rounded-lg border border-neutral-700">
-                 <BrainCircuit className="w-5 h-5 text-orange-500" />
+                 <Bot className="w-5 h-5 text-orange-500" />
               </div>
               <div>
                 <h3 className="font-display font-bold">NeBu SmartBot</h3>

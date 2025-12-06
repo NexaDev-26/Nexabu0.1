@@ -5,6 +5,7 @@ import { Branch, User } from '../types';
 import { useAppContext } from '../hooks/useAppContext';
 import { db, isFirebaseEnabled } from '../firebaseConfig';
 import { doc, updateDoc, addDoc, deleteDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { LocationDropdown } from './LocationDropdown';
 
 export const Settings: React.FC = () => {
   const { user, setUser, showNotification, seedDatabase } = useAppContext();
@@ -90,14 +91,43 @@ export const Settings: React.FC = () => {
 
           {/* Fields */}
           <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div><label className="label">Store Name</label><input className="input" value={profile.storeName || ''} onChange={e => setProfile({...profile, storeName: e.target.value})} /></div>
-              <div><label className="label">Business Type</label><select className="input" value={profile.businessType || ''} onChange={e => setProfile({...profile, businessType: e.target.value})}><option>Retail</option><option>Pharmacy</option><option>Wholesale</option></select></div>
-              <div><label className="label">Phone Number</label><input className="input" value={profile.phone || ''} onChange={e => setProfile({...profile, phone: e.target.value})} /></div>
-              <div><label className="label">Email Address</label><input className="input" value={profile.email || ''} onChange={e => setProfile({...profile, email: e.target.value})} /></div>
-              <div className="sm:col-span-2"><label className="label">Store Address</label><input className="input" value={profile.storeAddress || ''} onChange={e => setProfile({...profile, storeAddress: e.target.value})} /></div>
-              <div><label className="label">Country</label><input className="input" value={profile.country || 'Tanzania'} onChange={e => setProfile({...profile, country: e.target.value})} /></div>
-              <div><label className="label">Currency</label><input className="input" value={profile.currency || 'TZS'} onChange={e => setProfile({...profile, currency: e.target.value})} /></div>
-              <div className="sm:col-span-2"><label className="label">Website</label><input className="input" value={profile.website || ''} onChange={e => setProfile({...profile, website: e.target.value})} placeholder="https://..." /></div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">Store Name</label>
+                <input className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" value={profile.storeName || ''} onChange={e => setProfile({...profile, storeName: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">Business Type</label>
+                <select className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" value={profile.businessType || ''} onChange={e => setProfile({...profile, businessType: e.target.value})}>
+                  <option value="">Select Type</option>
+                  <option value="Retail">Retail</option>
+                  <option value="Pharmacy">Pharmacy</option>
+                  <option value="Wholesale">Wholesale</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">Phone Number</label>
+                <input className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" value={profile.phone || ''} onChange={e => setProfile({...profile, phone: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">Email Address</label>
+                <input className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" value={profile.email || ''} onChange={e => setProfile({...profile, email: e.target.value})} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">Store Address</label>
+                <input className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" value={profile.storeAddress || ''} onChange={e => setProfile({...profile, storeAddress: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">Country</label>
+                <input className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" value={profile.country || 'Tanzania'} onChange={e => setProfile({...profile, country: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">Currency</label>
+                <input className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" value={profile.currency || 'TZS'} onChange={e => setProfile({...profile, currency: e.target.value})} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">Website</label>
+                <input className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" value={profile.website || ''} onChange={e => setProfile({...profile, website: e.target.value})} placeholder="https://..." />
+              </div>
           </div>
           
           <div className="md:col-span-3 flex justify-end gap-3 pt-4 border-t border-neutral-100 dark:border-neutral-800">
@@ -142,11 +172,19 @@ export const Settings: React.FC = () => {
               <div className="bg-white dark:bg-neutral-900 w-full max-w-md rounded-xl p-6 shadow-xl border border-neutral-200 dark:border-neutral-800">
                   <h3 className="font-bold text-lg mb-4">Add New Branch</h3>
                   <div className="space-y-3">
-                      <input placeholder="Branch Name" className="input" value={newBranch.name || ''} onChange={e => setNewBranch({...newBranch, name: e.target.value})} />
-                      <input placeholder="Location" className="input" value={newBranch.location || ''} onChange={e => setNewBranch({...newBranch, location: e.target.value})} />
-                      <input placeholder="Phone" className="input" value={newBranch.phone || ''} onChange={e => setNewBranch({...newBranch, phone: e.target.value})} />
-                      <input placeholder="Email" className="input" value={newBranch.email || ''} onChange={e => setNewBranch({...newBranch, email: e.target.value})} />
-                      <select className="input" value={newBranch.status} onChange={e => setNewBranch({...newBranch, status: e.target.value as any})}><option>Active</option><option>Inactive</option></select>
+                      <input placeholder="Branch Name" className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" value={newBranch.name || ''} onChange={e => setNewBranch({...newBranch, name: e.target.value})} />
+                      <LocationDropdown
+                        value={newBranch.location || ''}
+                        onChange={(value) => setNewBranch({...newBranch, location: value})}
+                        placeholder="Select Location"
+                        showFullLocation={true}
+                      />
+                      <input placeholder="Phone" className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" value={newBranch.phone || ''} onChange={e => setNewBranch({...newBranch, phone: e.target.value})} />
+                      <input placeholder="Email" className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" value={newBranch.email || ''} onChange={e => setNewBranch({...newBranch, email: e.target.value})} />
+                      <select className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" value={newBranch.status} onChange={e => setNewBranch({...newBranch, status: e.target.value as any})}>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                      </select>
                       <div className="flex justify-end gap-3 pt-2">
                           <button onClick={() => setIsBranchModalOpen(false)} className="px-4 py-2 border rounded-lg text-sm">Cancel</button>
                           <button onClick={handleSaveBranch} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold">Save Branch</button>

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserRole, User, Product } from './types';
 import { Dashboard } from './components/Dashboard';
+import { CustomerDashboard } from './components/CustomerDashboard';
 import { SmartBot } from './components/SmartBot';
 import { Inventory } from './components/Inventory';
 import { Orders } from './components/Orders';
@@ -18,11 +19,11 @@ import { Wallet } from './components/Wallet';
 import { Auth } from './components/Auth';
 import { LandingPage } from './components/LandingPage';
 import { Marketing } from './components/Marketing';
-import { GhalaRestock } from './components/GhalaRestock';
-import { PurchaseOrders } from './components/PurchaseOrders';
+import { Procurement } from './components/Procurement';
 import { ProfileSettings } from './components/ProfileSettings';
 import { ProfileDropdown } from './components/ProfileDropdown';
 import { Customers } from './components/Customers';
+import { CustomerProfileSettings } from './components/CustomerProfileSettings';
 import { useAppContext } from './hooks/useAppContext';
 import { 
   LayoutDashboard, Store, Pill, Settings as SettingsIcon, LogOut, Menu,
@@ -71,6 +72,7 @@ export const App: React.FC = () => {
   
   const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isCustomerProfileSettingsOpen, setIsCustomerProfileSettingsOpen] = useState(false);
   const [adminPaymentDetails, setAdminPaymentDetails] = useState({ phone: '0700000000', name: 'NexaNova Admin', network: 'M-PESA' });
 
   useEffect(() => {
@@ -82,6 +84,14 @@ export const App: React.FC = () => {
       localStorage.setItem('theme', 'light');
     }
   }, [darkMode]);
+
+  // Close profile modals when navigating to Settings page
+  useEffect(() => {
+    if (view === 'settings') {
+      setIsProfileSettingsOpen(false);
+      setIsCustomerProfileSettingsOpen(false);
+    }
+  }, [view]);
 
   useEffect(() => {
     if (isFirebaseEnabled && auth) {
@@ -191,6 +201,9 @@ export const App: React.FC = () => {
   const navigate = (newView: string) => {
     setView(newView);
     setSidebarOpen(false);
+    // Close profile modals when navigating to a different page
+    setIsProfileSettingsOpen(false);
+    setIsCustomerProfileSettingsOpen(false);
   };
 
   const handleShowAuth = (type: 'login' | 'signup') => {
@@ -216,7 +229,7 @@ export const App: React.FC = () => {
 
   const renderContent = () => {
     switch(view) {
-      case 'dashboard': return <Dashboard />;
+      case 'dashboard': return role === UserRole.CUSTOMER ? <CustomerDashboard /> : <Dashboard />;
       case 'inventory': return <Inventory />;
       case 'prescriptions': return <Prescriptions />;
       case 'orders': return <Orders />;
@@ -228,18 +241,18 @@ export const App: React.FC = () => {
       case 'staff': return <StaffManagement />;
       case 'wallet': return <Wallet />;
       case 'marketing': return <Marketing />;
-      case 'ghala': return <GhalaRestock />;
-      case 'purchase-orders': return <PurchaseOrders />;
-      case 'storefront': return <Storefront />;
+      case 'procurement': return <Procurement />;
+      case 'storefront': return <Storefront onOpenCustomerProfile={role === UserRole.CUSTOMER ? () => setIsCustomerProfileSettingsOpen(true) : undefined} />;
       case 'settings': return <Settings />;
       default: return <Dashboard />;
     }
   };
 
   return (
-    <div className={darkMode ? 'dark' : ''}>
+      <div className={darkMode ? 'dark' : ''}>
       <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex font-sans text-neutral-900 dark:text-neutral-50 transition-colors duration-300">
         {user && <ProfileSettings isOpen={isProfileSettingsOpen} onClose={() => setIsProfileSettingsOpen(false)} user={user} onUpdate={setUser} />}
+        {user && role === UserRole.CUSTOMER && <CustomerProfileSettings isOpen={isCustomerProfileSettingsOpen} onClose={() => setIsCustomerProfileSettingsOpen(false)} />}
         {notification && <div className={`fixed top-4 right-4 z-[100] p-3 rounded-xl shadow-2xl border flex items-center gap-3 animate-fade-in ${notification.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}><Bell className="w-4 h-4" />{notification.message}</div>}
         
         {/* Mobile Sidebar Overlay */}
@@ -258,7 +271,7 @@ export const App: React.FC = () => {
               <SidebarItem icon={<Store size={20} />} label="Inventory" active={view === 'inventory'} onClick={() => navigate('inventory')} />
               <SidebarItem icon={<ShoppingBag size={20} />} label="Orders" active={view === 'orders'} onClick={() => navigate('orders')} />
               <SidebarItem icon={<UserCircle size={20} />} label="Customers" active={view === 'customers'} onClick={() => navigate('customers')} />
-              <SidebarItem icon={<FileText size={20} />} label="Suppliers & POs" active={view === 'purchase-orders'} onClick={() => navigate('purchase-orders')} />
+              <SidebarItem icon={<FileText size={20} />} label="Procurement & Restock" active={view === 'procurement'} onClick={() => navigate('procurement')} />
               <SidebarItem icon={<Truck size={20} />} label="Delivery" active={view === 'delivery'} onClick={() => navigate('delivery')} />
             </>}
             {[UserRole.SELLER, UserRole.PHARMACIST, UserRole.STAFF].includes(role) && <>
@@ -269,7 +282,6 @@ export const App: React.FC = () => {
               <SidebarItem icon={<Sparkles size={20} />} label="AI Marketing" active={view === 'marketing'} onClick={() => navigate('marketing')} />
               <SidebarItem icon={<Briefcase size={20} />} label="Staff & Sellers" active={view === 'staff'} onClick={() => navigate('staff')} />
               <SidebarItem icon={<WalletIcon size={20} />} label="Wallet & Finance" active={view === 'wallet'} onClick={() => navigate('wallet')} />
-              <SidebarItem icon={<Package size={20} />} label="Restock (Ghala)" active={view === 'ghala'} onClick={() => navigate('ghala')} />
               <SidebarItem icon={<Globe size={20} />} label="Marketplace" active={view === 'storefront'} onClick={() => navigate('storefront')} />
             </>}
             {role === UserRole.MANAGER && <SidebarItem icon={<Briefcase size={20} />} label="Staff Analytics" active={view === 'staff'} onClick={() => navigate('staff')} />}
@@ -298,14 +310,20 @@ export const App: React.FC = () => {
                   <span className="text-sm font-medium hidden sm:block">{user?.name || 'Profile'}</span>
                   <ChevronDown className="w-3 h-3 text-neutral-400 hidden sm:block" />
                 </button>
-                {isProfileDropdownOpen && <ProfileDropdown user={user!} onManageAccount={() => { setIsProfileDropdownOpen(false); setIsProfileSettingsOpen(true); }} onLogout={localLogout} />}
+                {isProfileDropdownOpen && (
+                  <ProfileDropdown 
+                    user={user!} 
+                    onManageAccount={() => { setIsProfileDropdownOpen(false); setIsProfileSettingsOpen(true); }} 
+                    onCustomerProfile={role === UserRole.CUSTOMER ? () => { setIsProfileDropdownOpen(false); setIsCustomerProfileSettingsOpen(true); } : undefined}
+                    onLogout={localLogout} 
+                  />
+                )}
               </div>
             </div>
           </header>
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-neutral-50 dark:bg-neutral-950 pb-20 lg:pb-6">{renderContent()}</div>
-          <div className="fixed bottom-6 right-6 z-40 hidden sm:block"><SmartBot /></div>
-          {/* Mobile Floating Action Button for AI - visible only on mobile */}
-          <div className="fixed bottom-4 right-4 z-40 sm:hidden"><SmartBot /></div>
+          {/* NeBu Bot - positioned in right corner */}
+          <div className="fixed bottom-4 right-4 z-40"><SmartBot /></div>
         </main>
       </div>
     </div>

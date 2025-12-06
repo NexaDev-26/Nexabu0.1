@@ -5,6 +5,7 @@ import { useAppContext } from '../hooks/useAppContext';
 import { Plus, Search, Trash2, Edit2, Upload, FileText, Share2, Printer, RefreshCw, Filter, User, MapPin, Phone, Mail, Camera, Save, X } from 'lucide-react';
 import { db, isFirebaseEnabled } from '../firebaseConfig';
 import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, onSnapshot } from 'firebase/firestore';
+import { LocationDropdown } from './LocationDropdown';
 
 export const Customers: React.FC = () => {
   const { user, showNotification } = useAppContext();
@@ -252,8 +253,24 @@ export const Customers: React.FC = () => {
                         <div className="p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-xl border border-neutral-100 dark:border-neutral-800">
                             <h4 className="text-sm font-bold mb-3 text-neutral-700 dark:text-neutral-300 flex items-center gap-2"><MapPin className="w-4 h-4"/> Location Details</h4>
                             <div className="grid grid-cols-2 gap-3 mb-3">
-                                <input type="text" placeholder="City / Region" value={formData.city || ''} onChange={e => setFormData({...formData, city: e.target.value})} className="p-2 border rounded text-sm dark:bg-neutral-900 dark:border-neutral-700 dark:text-white" />
-                                <input type="text" placeholder="District" value={formData.district || ''} onChange={e => setFormData({...formData, district: e.target.value})} className="p-2 border rounded text-sm dark:bg-neutral-900 dark:border-neutral-700 dark:text-white" />
+                                <div>
+                                    <label className="block text-xs font-medium text-neutral-500 mb-1">City / Region</label>
+                                    <LocationDropdown
+                                        value={formData.city || ''}
+                                        onChange={(value) => setFormData({...formData, city: value})}
+                                        placeholder="Select Region"
+                                        showFullLocation={false}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-neutral-500 mb-1">District</label>
+                                    <LocationDropdown
+                                        value={formData.district || ''}
+                                        onChange={(value) => setFormData({...formData, district: value})}
+                                        placeholder="Select District"
+                                        showFullLocation={true}
+                                    />
+                                </div>
                                 <input type="text" placeholder="Ward" value={formData.ward || ''} onChange={e => setFormData({...formData, ward: e.target.value})} className="p-2 border rounded text-sm dark:bg-neutral-900 dark:border-neutral-700 dark:text-white" />
                                 <input type="text" placeholder="Street / Village" value={formData.street || ''} onChange={e => setFormData({...formData, street: e.target.value})} className="p-2 border rounded text-sm dark:bg-neutral-900 dark:border-neutral-700 dark:text-white" />
                             </div>

@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
-import { Product, User, UserRole, Order } from '../types';
-import { ShoppingCart, Plus, Minus, Search, Star, MapPin, ArrowLeft, CheckCircle, Smartphone, Send, X, Copy, Store, Filter, ChevronRight, AlertCircle, Loader2, Navigation, ExternalLink, QrCode, Tag, CreditCard, MessageCircle } from 'lucide-react';
+import { Product, User, UserRole, Order, Customer } from '../types';
+import { ShoppingCart, Plus, Minus, Search, Star, MapPin, ArrowLeft, CheckCircle, Smartphone, Send, X, Copy, Store, Filter, ChevronRight, AlertCircle, Loader2, Navigation, ExternalLink, QrCode, Tag, CreditCard, MessageCircle, User as UserIcon } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
 import { db, isFirebaseEnabled } from '../firebaseConfig';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 
-export const Storefront: React.FC = () => {
-  const { products, allUsers, cart, setCart, paymentMethods, showNotification } = useAppContext();
+interface StorefrontProps {
+  onOpenCustomerProfile?: () => void;
+}
+
+export const Storefront: React.FC<StorefrontProps> = ({ onOpenCustomerProfile }) => {
+  const { products, allUsers, cart, setCart, paymentMethods, showNotification, user, role } = useAppContext();
   const vendors = allUsers.filter(u => u.role === UserRole.VENDOR || u.role === UserRole.PHARMACY);
 
   const [viewMode, setViewMode] = useState<'vendors' | 'products' | 'nearby'>('vendors');
@@ -70,6 +74,7 @@ export const Storefront: React.FC = () => {
     // Construct Order Data
     const orderData: Partial<Order> = {
       customerName: customerDetails.name,
+      customerId: user?.uid || undefined, // Link to customer user ID if available
       date: new Date().toISOString(),
       status: 'Pending',
       total: totalAmount,
@@ -83,6 +88,37 @@ export const Storefront: React.FC = () => {
     try {
       if (isFirebaseEnabled && db) {
         await addDoc(collection(db, "orders"), orderData);
+        
+        // Add customer to vendor's customer list
+        try {
+          // Check if customer already exists for this vendor
+          const customerQuery = query(
+            collection(db, 'customers'),
+            where('uid', '==', sellerId),
+            where('phone', '==', customerDetails.phone)
+          );
+          const existingCustomers = await getDocs(customerQuery);
+          
+          if (existingCustomers.empty) {
+            // Create new customer entry for the vendor
+            const customerData: Partial<Customer> = {
+              uid: sellerId, // Vendor's UID (owner of the customer list)
+              fullName: customerDetails.name,
+              phone: customerDetails.phone,
+              email: '',
+              type: 'Customer',
+              status: 'Active',
+              openingBalance: 0,
+              dateAdded: new Date().toISOString(),
+              residentAddress: customerDetails.address || ''
+            };
+            await addDoc(collection(db, 'customers'), customerData);
+            showNotification("Customer added to vendor's list", "success");
+          }
+        } catch (customerError) {
+          console.error("Error adding customer to vendor list:", customerError);
+          // Don't fail the order if customer addition fails
+        }
       }
       
       if (viaWhatsapp) {
@@ -146,9 +182,20 @@ export const Storefront: React.FC = () => {
         ) : (
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">Marketplace</h2>
-            <div className="flex bg-neutral-100 dark:bg-neutral-800 p-1 rounded-lg">
-              <button onClick={() => setViewMode('vendors')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'vendors' ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm' : 'text-neutral-500 dark:text-neutral-400'}`}>Shops</button>
-              <button onClick={() => setViewMode('products')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'products' ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm' : 'text-neutral-500 dark:text-neutral-400'}`}>Products</button>
+            <div className="flex items-center gap-3">
+              {role === UserRole.CUSTOMER && onOpenCustomerProfile && (
+                <button 
+                  onClick={onOpenCustomerProfile}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-500 text-sm font-medium flex items-center gap-2"
+                >
+                  <UserIcon className="w-4 h-4" />
+                  My Profile
+                </button>
+              )}
+              <div className="flex bg-neutral-100 dark:bg-neutral-800 p-1 rounded-lg">
+                <button onClick={() => setViewMode('vendors')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'vendors' ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm' : 'text-neutral-500 dark:text-neutral-400'}`}>Shops</button>
+                <button onClick={() => setViewMode('products')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'products' ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-white shadow-sm' : 'text-neutral-500 dark:text-neutral-400'}`}>Products</button>
+              </div>
             </div>
           </div>
         )}
@@ -177,20 +224,37 @@ export const Storefront: React.FC = () => {
 
         {(viewMode === 'products' || selectedVendorId) && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {filteredProducts.map(p => (
-              <div key={p.id} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden group hover:shadow-md transition-all">
-                <div className="relative aspect-square bg-neutral-100 dark:bg-neutral-800">
-                  <img src={p.image} className="w-full h-full object-cover" alt={p.name} />
-                  <button onClick={() => addToCart(p)} className="absolute bottom-2 right-2 bg-white dark:bg-neutral-900 p-2 rounded-full shadow-lg text-orange-600 hover:scale-110 transition-transform">
-                    <Plus className="w-4 h-4" />
-                  </button>
+            {filteredProducts.map(p => {
+              const productVendor = vendors.find(v => v.uid === p.uid);
+              return (
+                <div key={p.id} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden group hover:shadow-md transition-all">
+                  <div className="relative aspect-square bg-neutral-100 dark:bg-neutral-800">
+                    <img src={p.image} className="w-full h-full object-cover" alt={p.name} />
+                    <button onClick={() => addToCart(p)} className="absolute bottom-2 right-2 bg-white dark:bg-neutral-900 p-2 rounded-full shadow-lg text-orange-600 hover:scale-110 transition-transform">
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="p-3">
+                    <h3 className="font-medium text-neutral-900 dark:text-white text-sm line-clamp-1">{p.name}</h3>
+                    <p className="text-orange-600 dark:text-orange-400 font-bold text-sm mt-1">TZS {p.price.toLocaleString()}</p>
+                    {productVendor && (
+                      <div className="mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+                        <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+                          <Store className="w-3 h-3" />
+                          <span className="line-clamp-1">{productVendor.storeName}</span>
+                        </div>
+                        {productVendor.location && (
+                          <div className="flex items-center gap-1.5 text-xs text-neutral-500 mt-1">
+                            <MapPin className="w-3 h-3" />
+                            <span className="line-clamp-1">{productVendor.location}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="p-3">
-                  <h3 className="font-medium text-neutral-900 dark:text-white text-sm line-clamp-1">{p.name}</h3>
-                  <p className="text-orange-600 dark:text-orange-400 font-bold text-sm mt-1">TZS {p.price.toLocaleString()}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
