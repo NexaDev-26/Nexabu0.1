@@ -1,0 +1,9 @@
+{
+  "name": "Copy of Copy 02 of Nexabu",
+  "description": "Multi-Tenant SaaS Super-App for Retail & Pharmacy",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation",
+    "camera"
+  ]
+}

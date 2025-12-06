@@ -1,0 +1,46 @@
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // --- HELPERS ---
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Validate Image: Must be an image content type and less than 5MB
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*')
+             && request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // --- MATCHERS ---
+
+    // 1. User Profile Images
+    // Users can manage their own profile images
+    match /users/{userId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isOwner(userId) && isValidImage();
+    }
+
+    // 2. Product Images (If uploaded to Storage)
+    // Structure: /products/{userId}/{filename}
+    // Only the owner of the store (userId) can upload images to their folder
+    match /products/{userId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isOwner(userId) && isValidImage();
+    }
+
+    // 3. Default Deny
+    // Fallback for any other path not explicitly allowed
+    match /{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if false; 
+    }
+  }
+}

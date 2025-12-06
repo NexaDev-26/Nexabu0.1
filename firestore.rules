@@ -1,0 +1,160 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- HELPER FUNCTIONS ---
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Fetch the current user's profile
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Check if the user is an Admin
+    function isAdmin() {
+      return isAuthenticated() && getUserData().role == 'ADMIN';
+    }
+
+    // Multi-tenancy check:
+    // Returns true if the authenticated user is the owner (resourceUid matches auth.uid)
+    // OR if the authenticated user is staff of the owner (user.employerId matches resourceUid)
+    function isOwnerOrStaff(resourceUid) {
+      return isAuthenticated() && (
+        request.auth.uid == resourceUid || 
+        (getUserData().employerId == resourceUid)
+      );
+    }
+
+    // Prevent users from changing sensitive fields during updates
+    function notUpdatingSensitiveFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['role', 'employerId', 'creditLimit', 'walletBalance', 'uid', 'status']);
+    }
+
+    // Ensure the 'uid' field (ownership) is not changed during update
+    function ownershipNotChanged() {
+      return request.resource.data.uid == resource.data.uid;
+    }
+    
+    // --- COLLECTION RULES ---
+
+    // 1. Users Collection
+    match /users/{userId} {
+      // Read: 
+      // - Own profile
+      // - Profiles of Vendors/Pharmacies (Publicly visible to authenticated users for Marketplace)
+      // - Employer/Staff relationship visibility
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        resource.data.role in ['VENDOR', 'PHARMACY'] ||
+        resource.data.employerId == request.auth.uid || 
+        getUserData().employerId == resource.data.uid ||
+        getUserData().employerId == resource.data.employerId
+      );
+      
+      // Create: Sign up (Allow creating own doc)
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+
+      // Update:
+      // - Self (Update profile details, BUT NOT sensitive fields like role/credit)
+      // - Admin (Full access)
+      // - Owner managing Staff (Update staff profiles linked to them)
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == userId && notUpdatingSensitiveFields()) || 
+        isAdmin() ||
+        (resource.data.employerId == request.auth.uid)
+      );
+
+      // Delete: Admin or Owner deleting staff
+      allow delete: if isAuthenticated() && (isAdmin() || resource.data.employerId == request.auth.uid);
+    }
+
+    // 2. Pending Staff (Invitations)
+    match /pending_staff/{docId} {
+      allow read, write: if isAuthenticated() && (
+        resource == null || 
+        resource.data.employerId == request.auth.uid
+      );
+    }
+
+    // 3. Products (Inventory)
+    match /products/{productId} {
+      // Read: All authenticated users (Marketplace)
+      allow read: if isAuthenticated();
+      
+      // Create: Owner or Staff creating for their store
+      allow create: if isAuthenticated() && isOwnerOrStaff(request.resource.data.uid);
+
+      // Update/Delete: Owner or Staff, must maintain ownership
+      allow update: if isAuthenticated() && isOwnerOrStaff(resource.data.uid) && ownershipNotChanged();
+      allow delete: if isAuthenticated() && isOwnerOrStaff(resource.data.uid);
+    }
+
+    // 4. Orders
+    match /orders/{orderId} {
+      // Create: Any authenticated user (Customers or Sellers manually creating)
+      allow create: if isAuthenticated();
+      
+      // Read: 
+      // - Seller (Owner/Staff checking 'sellerId')
+      // - Buyer (Customer checking 'customerId' or creation context)
+      allow read: if isAuthenticated() && (
+        isOwnerOrStaff(resource.data.sellerId) || 
+        resource.data.customerId == request.auth.uid
+      );
+      
+      // Update: Seller (Status updates)
+      allow update: if isAuthenticated() && isOwnerOrStaff(resource.data.sellerId);
+    }
+
+    // 5. Wholesale (Ghala) Catalog
+    match /wholesale_products/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 6. Business Data Collections (Strict 'uid' ownership)
+    // Applies to: branches, customers, suppliers, purchase_orders, 
+    // inventory_adjustments, transactions, deliveries, drivers, 
+    // credit_applications, wholesale_orders, item_groups, item_categories, item_units
+    match /{collection}/{docId} {
+      allow read: if isAuthenticated() && 
+        collection in ['branches', 'customers', 'suppliers', 'purchase_orders', 
+                       'inventory_adjustments', 'transactions', 'deliveries', 
+                       'drivers', 'credit_applications', 'wholesale_orders',
+                       'item_groups', 'item_categories', 'item_units'] &&
+        isOwnerOrStaff(resource.data.uid);
+
+      allow create: if isAuthenticated() && 
+        collection in ['branches', 'customers', 'suppliers', 'purchase_orders', 
+                       'inventory_adjustments', 'transactions', 'deliveries', 
+                       'drivers', 'credit_applications', 'wholesale_orders',
+                       'item_groups', 'item_categories', 'item_units'] &&
+        isOwnerOrStaff(request.resource.data.uid);
+
+      allow update: if isAuthenticated() && 
+        collection in ['branches', 'customers', 'suppliers', 'purchase_orders', 
+                       'inventory_adjustments', 'transactions', 'deliveries', 
+                       'drivers', 'credit_applications', 'wholesale_orders',
+                       'item_groups', 'item_categories', 'item_units'] &&
+        isOwnerOrStaff(resource.data.uid) && ownershipNotChanged();
+
+      allow delete: if isAuthenticated() && 
+        collection in ['branches', 'customers', 'suppliers', 'purchase_orders', 
+                       'inventory_adjustments', 'transactions', 'deliveries', 
+                       'drivers', 'credit_applications', 'wholesale_orders',
+                       'item_groups', 'item_categories', 'item_units'] &&
+        isOwnerOrStaff(resource.data.uid);
+    }
+
+    // 7. System Packages
+    match /packages/{pkgId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
