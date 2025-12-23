@@ -121,40 +121,75 @@ service cloud.firestore {
     // Applies to: branches, customers, suppliers, purchase_orders, 
     // inventory_adjustments, transactions, deliveries, drivers, 
     // credit_applications, wholesale_orders, item_groups, item_categories, item_units
+    // expenses, expense_categories, bills, invoices, stock_alerts, alert_settings
+    // warehouse_transfers, delivery_tracking, shop_pages, abandoned_carts
     match /{collection}/{docId} {
       allow read: if isAuthenticated() && 
         collection in ['branches', 'customers', 'suppliers', 'purchase_orders', 
                        'inventory_adjustments', 'transactions', 'deliveries', 
                        'drivers', 'credit_applications', 'wholesale_orders',
-                       'item_groups', 'item_categories', 'item_units'] &&
+                       'item_groups', 'item_categories', 'item_units',
+                       'expenses', 'expense_categories', 'bills', 'invoices',
+                       'stock_alerts', 'alert_settings', 'warehouse_transfers', 'delivery_tracking',
+                       'shop_pages', 'abandoned_carts'] &&
         isOwnerOrStaff(resource.data.uid);
 
       allow create: if isAuthenticated() && 
         collection in ['branches', 'customers', 'suppliers', 'purchase_orders', 
                        'inventory_adjustments', 'transactions', 'deliveries', 
                        'drivers', 'credit_applications', 'wholesale_orders',
-                       'item_groups', 'item_categories', 'item_units'] &&
+                       'item_groups', 'item_categories', 'item_units',
+                       'expenses', 'expense_categories', 'bills', 'invoices',
+                       'stock_alerts', 'alert_settings', 'warehouse_transfers', 'delivery_tracking',
+                       'shop_pages', 'abandoned_carts'] &&
         isOwnerOrStaff(request.resource.data.uid);
 
       allow update: if isAuthenticated() && 
         collection in ['branches', 'customers', 'suppliers', 'purchase_orders', 
                        'inventory_adjustments', 'transactions', 'deliveries', 
                        'drivers', 'credit_applications', 'wholesale_orders',
-                       'item_groups', 'item_categories', 'item_units'] &&
+                       'item_groups', 'item_categories', 'item_units',
+                       'expenses', 'expense_categories', 'bills', 'invoices',
+                       'stock_alerts', 'alert_settings', 'warehouse_transfers', 'delivery_tracking',
+                       'shop_pages', 'abandoned_carts'] &&
         isOwnerOrStaff(resource.data.uid) && ownershipNotChanged();
 
       allow delete: if isAuthenticated() && 
         collection in ['branches', 'customers', 'suppliers', 'purchase_orders', 
                        'inventory_adjustments', 'transactions', 'deliveries', 
                        'drivers', 'credit_applications', 'wholesale_orders',
-                       'item_groups', 'item_categories', 'item_units'] &&
+                       'item_groups', 'item_categories', 'item_units',
+                       'expenses', 'expense_categories', 'bills', 'invoices',
+                       'stock_alerts', 'alert_settings', 'warehouse_transfers', 'delivery_tracking',
+                       'shop_pages', 'abandoned_carts'] &&
         isOwnerOrStaff(resource.data.uid);
+    }
+
+    // 8. Public Shop Pages (read-only for published shops)
+    match /shop_pages/{shopId} {
+      allow read: if resource.data.isPublished == true;
+      allow write: if isAuthenticated() && isOwnerOrStaff(resource.data.uid);
     }
 
     // 7. System Packages
     match /packages/{pkgId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // 9. Audit Logs
+    match /audit_logs/{logId} {
+      // Read: Own logs or Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // Create: Any authenticated user can create audit logs
+      allow create: if isAuthenticated();
+      
+      // Update/Delete: Only admins (logs should be immutable)
+      allow update, delete: if isAdmin();
     }
   }
 }

@@ -1,12 +1,18 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppContextProvider } from './contexts/AppContext';
+import { setupGlobalErrorHandler } from './utils/errorHandler';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
+}
+
+// Setup global error handler
+if (typeof window !== 'undefined') {
+  setupGlobalErrorHandler();
 }
 
 const root = ReactDOM.createRoot(rootElement);

@@ -30,9 +30,11 @@ export const LocationDropdown: React.FC<LocationDropdownProps> = ({
         setSelectedDistrict(parts[0]);
       }
     } else if (value) {
-      // Try to find if it's a region
+      // If value matches a region, preselect region; otherwise treat as district text
       if (TANZANIAN_REGIONS.includes(value)) {
         setSelectedRegion(value);
+      } else {
+        setSelectedDistrict(value);
       }
     }
   }, [value, showFullLocation]);
@@ -40,11 +42,9 @@ export const LocationDropdown: React.FC<LocationDropdownProps> = ({
   const handleRegionSelect = (region: string) => {
     setSelectedRegion(region);
     setSelectedDistrict('');
-    if (!showFullLocation) {
-      onChange(region);
-      setIsOpen(false);
-    }
+    // Always proceed to district list; only commit selection when district is chosen
   };
+
 
   const handleDistrictSelect = (district: string) => {
     setSelectedDistrict(district);

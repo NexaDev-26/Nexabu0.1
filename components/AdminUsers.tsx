@@ -1,19 +1,54 @@
 import React, { useState } from 'react';
-import { Search, Plus, Trash2, Edit2 } from 'lucide-react';
+import { Search, Plus, Trash2, Edit2, Loader2, AlertTriangle } from 'lucide-react';
 import { User, UserRole } from '../types';
 import { useAppContext } from '../hooks/useAppContext';
-import { db } from '../firebaseConfig';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { deleteUserAccount, getUserDataCount } from '../services/userDeletionService';
+import { ErrorHandler } from '../utils/errorHandler';
 
 export const AdminUsers: React.FC = () => {
-  const { allUsers } = useAppContext(); // Changed from `users` to `allUsers` to reflect context
+  const { allUsers, showNotification } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
-  const handleDelete = async (uid: string) => {
-    if (window.confirm('Delete this user?') && db) {
-      try {
-        await deleteDoc(doc(db, "users", uid));
-      } catch(e) { console.error(e); }
+  const handleDelete = async (user: User) => {
+    if (!window.confirm(`⚠️ WARNING: This will permanently delete ALL data associated with ${user.name || user.email}.\n\nThis includes:\n- All products\n- All orders\n- All customers\n- All invoices and bills\n- All expenses\n- All inventory data\n- All staff accounts\n\nThis action CANNOT be undone!\n\nAre you sure you want to proceed?`)) {
+      return;
+    }
+
+    // Get data count for confirmation
+    try {
+      const counts = await getUserDataCount(user.uid);
+      const totalItems = Object.values(counts).reduce((sum, count) => sum + count, 0);
+      
+      if (totalItems > 0) {
+        const confirmMessage = `This account has ${totalItems} data entries across multiple collections.\n\nAre you absolutely sure you want to delete everything?`;
+        if (!window.confirm(confirmMessage)) {
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Error getting data count:', error);
+    }
+
+    setDeletingUserId(user.uid);
+    try {
+      const result = await deleteUserAccount(user.uid);
+      
+      if (result.success) {
+        showNotification(`Successfully deleted account and ${result.deletedCount} related data entries.`, 'success');
+      } else {
+        const errorMsg = result.errors.length > 0 
+          ? `Deleted ${result.deletedCount} items, but some errors occurred: ${result.errors.slice(0, 3).join(', ')}`
+          : 'Failed to delete account completely.';
+        showNotification(errorMsg, 'error');
+        console.error('Deletion errors:', result.errors);
+      }
+    } catch (error: any) {
+      const appError = ErrorHandler.handleApiError(error);
+      showNotification(`Error deleting account: ${appError.message}`, 'error');
+      ErrorHandler.logError(appError, 'Delete User Account');
+    } finally {
+      setDeletingUserId(null);
     }
   };
   
@@ -39,7 +74,18 @@ export const AdminUsers: React.FC = () => {
                 <td className="p-4">{user.role}</td>
                 <td className="p-4 text-right">
                   <button className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg"><Edit2 size={16}/></button>
-                  <button onClick={() => handleDelete(user.uid)} className="p-2 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg text-red-500"><Trash2 size={16}/></button>
+                  <button 
+                    onClick={() => handleDelete(user)} 
+                    disabled={deletingUserId === user.uid}
+                    className="p-2 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg text-red-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                    title="Delete user and all associated data"
+                  >
+                    {deletingUserId === user.uid ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={16}/>
+                    )}
+                  </button>
                 </td>
               </tr>
             ))}

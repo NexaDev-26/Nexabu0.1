@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Product, InventoryAdjustment, ItemGroup, ItemCategory, ItemUnit, UnitConversion } from '../types';
-import { Plus, Search, AlertTriangle, Filter, Save, X, Trash2, Edit2, Layers, Grid, Scale, RefreshCw, ChevronDown, Check, ArrowRightLeft, ScanBarcode, Camera, CameraOff } from 'lucide-react';
+import { Product, InventoryAdjustment, ItemGroup, ItemCategory, ItemUnit, UnitConversion, User } from '../types';
+import { Plus, Search, AlertTriangle, Filter, Save, X, Trash2, Edit2, Layers, Grid, Scale, RefreshCw, ChevronDown, Check, ArrowRightLeft, ScanBarcode, Camera, CameraOff, Upload, Store } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
 import { db, isFirebaseEnabled } from '../firebaseConfig';
-import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy, getDocs, getDoc } from 'firebase/firestore';
+import { BulkImportModal } from './BulkImportModal';
 
 export const Inventory: React.FC = () => {
   const { user, showNotification } = useAppContext();
@@ -16,6 +17,7 @@ export const Inventory: React.FC = () => {
   const [groups, setGroups] = useState<ItemGroup[]>([]);
   const [categories, setCategories] = useState<ItemCategory[]>([]);
   const [units, setUnits] = useState<ItemUnit[]>([]);
+  const [storeNames, setStoreNames] = useState<{ [uid: string]: string }>({});
   
   // UI State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,10 +33,49 @@ export const Inventory: React.FC = () => {
   // Generic Form State
   const [genericForm, setGenericForm] = useState<any>({});
   const [isGenericModalOpen, setIsGenericModalOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Sync Data
+  // Load store names for products
+  useEffect(() => {
+    if (isFirebaseEnabled && db && items.length > 0) {
+      const loadStoreNames = async () => {
+        const uniqueUids = [...new Set(items.map(item => item.uid))];
+        const names: { [uid: string]: string } = {};
+        
+        for (const uid of uniqueUids) {
+          if (!storeNames[uid]) {
+            try {
+              // Get user document directly by document ID (uid is the document ID in users collection)
+              const userDocRef = doc(db, 'users', uid);
+              const userDocSnap = await getDoc(userDocRef);
+              
+              if (userDocSnap.exists()) {
+                const userData = userDocSnap.data() as User;
+                names[uid] = userData.storeName || userData.name || 'Unknown Store';
+              } else {
+                names[uid] = 'Unknown Store';
+              }
+            } catch (error) {
+              console.error('Error loading store name for uid:', uid, error);
+              names[uid] = 'Unknown Store';
+            }
+          } else {
+            names[uid] = storeNames[uid];
+          }
+        }
+        
+        if (Object.keys(names).length > 0) {
+          setStoreNames(prev => ({ ...prev, ...names }));
+        }
+      };
+      
+      loadStoreNames();
+    }
+  }, [items.length, storeNames]);
+
+  // Sync Data - Only show products inserted by stores (where uid matches store owner)
   useEffect(() => {
     if (isFirebaseEnabled && db && user?.uid) {
         const targetUid = user.employerId || user.uid;
@@ -46,7 +87,20 @@ export const Inventory: React.FC = () => {
         };
 
         const unsubs = [
-            onSnapshot(query(collection(db, 'products'), where('uid', '==', targetUid)), s => setItems(s.docs.map(d => ({...d.data(), id: d.id} as Product))), handleError),
+            // Only load products where uid matches the store owner (not all products)
+            onSnapshot(
+              query(collection(db, 'products'), where('uid', '==', targetUid)), 
+              s => {
+                const products = s.docs.map(d => ({...d.data(), id: d.id} as Product));
+                // Ensure we only show products from stores (vendors/pharmacies), not from other sources
+                const storeProducts = products.filter(p => {
+                  // Products must have uid that matches a store owner
+                  return p.uid === targetUid;
+                });
+                setItems(storeProducts);
+              }, 
+              handleError
+            ),
             // FIX: Removed orderBy('date', 'desc') to avoid missing index error. Sorting client-side instead.
             onSnapshot(query(collection(db, 'inventory_adjustments'), where('uid', '==', targetUid)), s => {
                 const data = s.docs.map(d => ({...d.data(), id: d.id} as InventoryAdjustment));
@@ -63,44 +117,46 @@ export const Inventory: React.FC = () => {
 
   // --- Scanner Logic ---
   useEffect(() => {
-      let stream: MediaStream | null = null;
-      if (isScannerOpen) {
-          navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-              .then(s => {
-                  stream = s;
-                  if (videoRef.current) {
-                      videoRef.current.srcObject = stream;
-                      videoRef.current.play();
+      if (!isScannerOpen || !videoRef.current) return;
+
+      let cleanup: (() => void) | null = null;
+
+      import('../utils/barcodeScanner').then(({ startBarcodeScanning }) => {
+          startBarcodeScanning(videoRef.current!, {
+              onScan: (result) => {
+                  // Find item by barcode
+                  const found = items.find(i => i.barcode === result.code);
+                  if (found) {
+                      setSearchTerm(found.name);
+                      showNotification(`Scanned: ${found.name}`, 'success');
+                      setIsScannerOpen(false);
+                  } else {
+                      showNotification(`Barcode ${result.code} not found. Add it as a new product?`, 'info');
+                      setSearchTerm(result.code);
+                      setIsScannerOpen(false);
+                      // Optionally open add product modal with barcode pre-filled
+                      setEditingItem({ barcode: result.code, status: 'Active', trackInventory: true });
+                      setIsModalOpen(true);
                   }
-              })
-              .catch(err => {
-                  console.error("Camera error:", err);
-                  alert("Cannot access camera for scanning.");
+              },
+              onError: (error) => {
+                  console.error("Barcode scan error:", error);
+                  showNotification("Failed to scan barcode. Please try again.", "error");
+              },
+              continuous: false
+          }).then((cleanupFn) => {
+              cleanup = cleanupFn;
+          });
+      }).catch((error) => {
+          console.error("Failed to load barcode scanner:", error);
+          showNotification("Barcode scanning not available in this browser.", "error");
                   setIsScannerOpen(false);
               });
-      }
-      return () => {
-          if (stream) stream.getTracks().forEach(t => t.stop());
-      };
-  }, [isScannerOpen]);
 
-  const handleScanSimulate = () => {
-      // In a real app, a barcode detection library (like QuaggaJS) would go here.
-      // For this full-stack demo, we simulate a scan after 2 seconds of "camera" view.
-      setTimeout(() => {
-          const mockBarcode = "123456789"; 
-          // Find item or set term
-          const found = items.find(i => i.barcode === mockBarcode);
-          if (found) {
-              setSearchTerm(found.name);
-              showNotification(`Scanned: ${found.name}`, 'success');
-          } else {
-              showNotification(`Barcode ${mockBarcode} not found`, 'info');
-              setSearchTerm(mockBarcode); // Pre-fill search/add
-          }
-          setIsScannerOpen(false);
-      }, 2000);
-  };
+      return () => {
+          if (cleanup) cleanup();
+      };
+  }, [isScannerOpen, items, showNotification]);
 
   // --- Handlers ---
 
@@ -219,6 +275,12 @@ export const Inventory: React.FC = () => {
                 <button onClick={() => setIsAdjustmentModalOpen(true)} className="px-4 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg text-sm font-medium hover:bg-neutral-50 dark:hover:bg-neutral-800">
                     Adjust Stock
                 </button>
+                <button 
+                    onClick={() => setIsBulkImportOpen(true)} 
+                    className="flex items-center gap-2 px-4 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg text-sm font-medium hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                >
+                    <Upload className="w-4 h-4" /> Bulk Import
+                </button>
                 <button onClick={() => { setEditingItem({ status: 'Active', trackInventory: true }); setIsModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-500 font-bold shadow-lg shadow-orange-900/20">
                     <Plus className="w-4 h-4" /> Add Item
                 </button>
@@ -250,6 +312,7 @@ export const Inventory: React.FC = () => {
                       <thead className="bg-neutral-50 dark:bg-neutral-950 text-neutral-500">
                           <tr>
                               <th className="p-4">Item Name</th>
+                              <th className="p-4">Store</th>
                               <th className="p-4">Barcode</th>
                               <th className="p-4">Category</th>
                               <th className="p-4">Unit</th>
@@ -264,6 +327,14 @@ export const Inventory: React.FC = () => {
                           {items.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()) || i.barcode?.includes(searchTerm)).map(item => (
                               <tr key={item.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                                   <td className="p-4 font-medium text-neutral-900 dark:text-white">{item.name}</td>
+                                  <td className="p-4">
+                                    <div className="flex items-center gap-2">
+                                      <Store className="w-4 h-4 text-neutral-400" />
+                                      <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                                        {storeNames[item.uid] || 'Loading...'}
+                                      </span>
+                                    </div>
+                                  </td>
                                   <td className="p-4 font-mono text-xs text-neutral-500">{item.barcode || '-'}</td>
                                   <td className="p-4 text-xs text-neutral-500">
                                       {categories.find(c => c.id === item.categoryId)?.name || item.category || '-'}
@@ -331,8 +402,8 @@ export const Inventory: React.FC = () => {
 
       {/* ADD ITEM MODAL */}
       {isModalOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] border border-neutral-200 dark:border-neutral-800">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] border border-neutral-200 dark:border-neutral-800 overflow-hidden">
                   <div className="p-5 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
                       <h3 className="font-bold text-lg text-neutral-900 dark:text-white">{editingItem.id ? 'Edit Item' : 'Add New Item'}</h3>
                       <button onClick={() => setIsModalOpen(false)}><X className="w-5 h-5 text-neutral-400"/></button>
@@ -394,7 +465,25 @@ export const Inventory: React.FC = () => {
                                <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Barcode</label>
                                <div className="flex gap-2">
                                    <input type="text" placeholder="Scan or Type" value={editingItem.barcode || ''} onChange={e => setEditingItem({...editingItem, barcode: e.target.value})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
-                                   <button onClick={() => setIsScannerOpen(true)} className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded hover:bg-neutral-200"><ScanBarcode className="w-4 h-4"/></button>
+                                   <button onClick={() => setIsScannerOpen(true)} className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded hover:bg-neutral-200" title="Scan Barcode"><ScanBarcode className="w-4 h-4"/></button>
+                                   {editingItem.barcode && (
+                                     <button 
+                                       onClick={async () => {
+                                         try {
+                                           const { generateProductBarcode, downloadBarcode } = await import('../utils/barcodeGenerator');
+                                           const barcode = generateProductBarcode(editingItem.barcode!);
+                                           downloadBarcode(editingItem.barcode!, `barcode-${editingItem.name || editingItem.barcode}.png`);
+                                           showNotification('Barcode generated and downloaded', 'success');
+                                         } catch (error: any) {
+                                           showNotification('Failed to generate barcode', 'error');
+                                         }
+                                       }}
+                                       className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded hover:bg-orange-200 dark:hover:bg-orange-900/30" 
+                                       title="Generate & Download Barcode"
+                                     >
+                                       <Upload className="w-4 h-4 text-orange-600 dark:text-orange-400"/>
+                                     </button>
+                                   )}
                                </div>
                            </div>
                       </div>
@@ -414,8 +503,8 @@ export const Inventory: React.FC = () => {
 
       {/* ADJUSTMENT MODAL */}
       {isAdjustmentModalOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-neutral-900 w-full max-w-md rounded-2xl shadow-xl p-6 border border-neutral-200 dark:border-neutral-800">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-neutral-900 w-full max-w-md rounded-2xl shadow-xl p-6 border border-neutral-200 dark:border-neutral-800 max-h-[90vh] overflow-auto">
                   <h3 className="font-bold text-lg mb-4 text-neutral-900 dark:text-white">Inventory Adjustment</h3>
                   <div className="space-y-4">
                       <select value={adjustmentForm.itemId || ''} onChange={e => setAdjustmentForm({...adjustmentForm, itemId: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white">
@@ -440,8 +529,8 @@ export const Inventory: React.FC = () => {
 
       {/* GENERIC MODAL (Group/Cat/Unit) */}
       {isGenericModalOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-neutral-900 w-full max-w-sm rounded-2xl shadow-xl p-6 border border-neutral-200 dark:border-neutral-800">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-neutral-900 w-full max-w-sm rounded-2xl shadow-xl p-6 border border-neutral-200 dark:border-neutral-800 max-h-[90vh] overflow-auto">
                   <h3 className="font-bold text-lg mb-4 capitalize text-neutral-900 dark:text-white">Add/Edit {activeTab.slice(0, -1)}</h3>
                   <div className="space-y-4">
                       <input type="text" placeholder="Name" value={genericForm.name || ''} onChange={e => setGenericForm({...genericForm, name: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
@@ -457,7 +546,7 @@ export const Inventory: React.FC = () => {
 
       {/* SCANNER OVERLAY */}
       {isScannerOpen && (
-          <div className="fixed inset-0 bg-black z-[100] flex flex-col">
+          <div className="fixed inset-0 bg-black/80 z-[250] flex flex-col">
               <div className="flex justify-between items-center p-4 text-white bg-black/50 absolute top-0 w-full z-10">
                   <h3 className="font-bold flex items-center gap-2"><ScanBarcode /> Scanner</h3>
                   <button onClick={() => setIsScannerOpen(false)}><X className="w-6 h-6"/></button>
@@ -478,6 +567,19 @@ export const Inventory: React.FC = () => {
                   </button>
               </div>
           </div>
+      )}
+
+      {/* Bulk Import Modal */}
+      {isBulkImportOpen && user && (
+        <BulkImportModal
+          isOpen={isBulkImportOpen}
+          onClose={() => setIsBulkImportOpen(false)}
+          uid={user.employerId || user.uid}
+          onSuccess={() => {
+            showNotification("Products imported successfully", "success");
+            setIsBulkImportOpen(false);
+          }}
+        />
       )}
     </div>
   );

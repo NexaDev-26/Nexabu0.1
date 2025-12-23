@@ -1,257 +1,161 @@
-
-
+// User Role Enum
 export enum UserRole {
   ADMIN = 'ADMIN',
-  // Business Owners
   VENDOR = 'VENDOR',
   PHARMACY = 'PHARMACY',
-  // Staff Roles
+  CUSTOMER = 'CUSTOMER',
+  STAFF = 'STAFF',
   MANAGER = 'MANAGER',
   SELLER = 'SELLER',
   PHARMACIST = 'PHARMACIST',
-  STAFF = 'STAFF', // Deprecated/Generic
-  // End Users
-  CUSTOMER = 'CUSTOMER',
+  SALES_REP = 'SALES_REP'
 }
 
+// Staff Permissions Interface
+export interface StaffPermissions {
+  // Core Features
+  canAccessDashboard?: boolean;
+  canAccessOrders?: boolean;
+  canAccessCustomers?: boolean;
+  canAccessInventory?: boolean;
+  canAccessInvoices?: boolean;
+  canAccessDelivery?: boolean;
+  canAccessExpenses?: boolean;
+  canAccessPOS?: boolean; // POS/Storefront
+  
+  // Management Features
+  canAccessStaff?: boolean;
+  canAccessProcurement?: boolean;
+  canAccessTransfers?: boolean;
+  canAccessBills?: boolean;
+  canAccessWallet?: boolean;
+  canAccessMarketing?: boolean;
+  canAccessShopBuilder?: boolean;
+  canAccessPrescriptions?: boolean; // For pharmacies
+  
+  // Actions
+  canCreateOrders?: boolean;
+  canEditOrders?: boolean;
+  canDeleteOrders?: boolean;
+  canCreateProducts?: boolean;
+  canEditProducts?: boolean;
+  canDeleteProducts?: boolean;
+  canCreateCustomers?: boolean;
+  canEditCustomers?: boolean;
+  canDeleteCustomers?: boolean;
+  canCreateInvoices?: boolean;
+  canEditInvoices?: boolean;
+  canDeleteInvoices?: boolean;
+  canViewReports?: boolean;
+  canManageSettings?: boolean;
+}
+
+// User Interface
 export interface User {
   uid: string;
   name: string;
-  firstName?: string;
-  lastName?: string;
   email: string;
   role: UserRole;
-  photoURL?: string;
+  photoURL?: string | null;
   phone?: string;
-  whatsappNumber?: string;
   storeName?: string;
-  employerId?: string;
-  employerRole?: UserRole;
-  branchId?: string;
-  isDefaultPassword?: boolean;
-  defaultPassword?: string;
-  status?: 'Active' | 'Pending' | 'Suspended';
-  createdAt?: string;
-  packageId?: string;
   location?: string;
-  // Financials
-  creditLimit?: number;
-  creditScore?: number;
-  walletBalance?: number;
-  // Extended Store Info
+  packageId?: string;
+  createdAt: string;
+  status?: string;
+  employerId?: string; // For staff/manager/seller/pharmacist
+  storeLogo?: string;
   businessType?: string;
+  storeAddress?: string;
   country?: string;
   currency?: string;
   website?: string;
-  storeAddress?: string;
-  storeLogo?: string;
-  // Subscription Info
-  subscriptionPlan?: string;
-  subscriptionDate?: string;
-  subscriptionExpiry?: string;
-  activationDate?: string;
-  supportForumCode?: string;
-  // Access Control
-  permissions?: string[];
+  whatsappNumber?: string;
+  permissions?: StaffPermissions; // Permissions for staff members
+  commissionRate?: number; // Commission percentage for sales reps (0-100)
 }
 
-export interface Customer {
+// Product Interface
+export interface Product {
   id: string;
-  uid: string; // Tenant owner ID
+  uid: string;
+  name: string;
+  price: number;
+  stock: number;
+  image?: string;
+  category?: string;
+  barcode?: string;
+  buyingPrice?: number;
+  description?: string;
+  expiryDate?: string;
+  isPrescriptionRequired?: boolean;
+  createdAt?: string;
+  status?: string;
+  trackInventory?: boolean;
+  unit?: string;
+}
+
+// Customer Interface
+export interface Customer {
+  id?: string;
+  uid: string;
   fullName: string;
-  type: 'Customer' | 'Supplier' | 'Guarantor' | 'Other';
-  email: string;
   phone: string;
-  occupation?: string;
-  openingBalance: number;
-  dateAdded: string;
-  status: 'Active' | 'Inactive';
-  photo?: string;
-  // Location Hierarchy
+  email?: string;
   city?: string;
   district?: string;
   ward?: string;
-  village?: string;
   street?: string;
   residentAddress?: string;
-  // Attachments
-  nationalIdUrl?: string;
-  documentUrl?: string;
+  occupation?: string;
+  type?: string;
+  openingBalance?: number;
+  dateAdded?: string;
+  status?: string;
+  photo?: string;
 }
 
+// Order Interface
+export interface Order {
+  id: string;
+  sellerId: string;
+  customerId?: string;
+  customerName: string;
+  date: string;
+  status: string;
+  total: number;
+  items: Array<{
+    name: string;
+    price: number;
+    quantity: number;
+    productId?: string;
+  }>;
+  createdAt?: string;
+  deliveryAddress?: string;
+  paymentMethod?: string;
+  salesRepId?: string; // Sales representative who made the sale
+  salesRepName?: string;
+  commission?: number; // Commission amount for this order
+  branchId?: string; // Outlet/branch identifier
+  channel?: string; // POS / Online / Field
+  tax?: number;
+  discount?: number;
+  refund?: number;
+  voided?: boolean;
+}
+
+// Branch Interface
 export interface Branch {
   id: string;
   uid: string;
   name: string;
+  location?: string;
   phone?: string;
-  email?: string;
-  website?: string;
-  location: string;
-  status: 'Active' | 'Inactive';
-  manager?: string;
-}
-
-// --- INVENTORY EXTENSIONS ---
-
-export interface ItemGroup {
-  id: string;
-  uid: string;
-  name: string;
-  description?: string;
-  status: 'Active' | 'Inactive';
-}
-
-export interface ItemCategory {
-  id: string;
-  uid: string;
-  name: string;
-  type?: string;
-  description?: string;
-  status: 'Active' | 'Inactive';
-}
-
-export interface ItemUnit {
-  id: string;
-  uid: string;
-  name: string;
-  description?: string;
-  status: 'Active' | 'Inactive';
-}
-
-export interface UnitConversion {
-  id: string;
-  uid: string;
-  itemName: string;
-  equivalentUnit: string;
-  smallestUnit: string;
-  description?: string;
-  status: 'Active' | 'Inactive';
-}
-
-export interface InventoryAdjustment {
-  id: string;
-  uid: string;
-  itemId: string;
-  itemName: string;
-  type: 'Add' | 'Remove';
-  quantity: number;
-  date: string;
-  description?: string;
-  user?: string;
-}
-
-export interface Product {
-  id: string;
-  uid: string; // Owner ID
-  name: string;
-  description?: string;
-  price: number; // Selling Price
-  buyingPrice?: number;
-  stock: number; // On Hand
-  openingStock?: number;
-  
-  // Relations
-  groupId?: string;
-  categoryId?: string;
-  category?: string; // Main Category Name
-  unit?: string; // Unit Name
-  
-  // Accounting
-  incomeAccount?: string;
-  expenseAccount?: string;
-  
-  // Tracking
-  trackInventory?: boolean;
-  status?: 'Active' | 'Inactive';
-  barcode?: string; // NEW: Barcode
-  
-  // Visuals
-  image: string;
-  
-  // Pharmacy Specifics
-  expiryDate?: string;
-  batchNumber?: string;
-  isPrescriptionRequired?: boolean;
-  document?: string;
-  
-  variants?: Variant[];
+  managerId?: string;
   createdAt?: string;
 }
 
-export interface Variant {
-  id: string;
-  name: string;
-  price: number;
-  stock: number;
-}
-
-export interface Supplier {
-  id: string;
-  name: string;
-  contactPerson: string;
-  phone: string;
-  email: string;
-  uid: string;
-}
-
-export interface PurchaseOrder {
-  id: string;
-  supplierId: string;
-  supplierName: string;
-  status: 'Draft' | 'Ordered' | 'Received' | 'Cancelled';
-  items: { name: string; quantity: number; cost: number; productId?: string }[];
-  totalCost: number;
-  dateIssued: string;
-  expectedDate?: string;
-  uid: string;
-  note?: string;
-}
-
-export interface Order {
-  id: string;
-  customerName: string;
-  total: number;
-  status: 'Pending' | 'Processing' | 'Delivered' | 'Cancelled';
-  date: string;
-  items: { name: string; price: number; quantity: number }[] | Product[];
-  sellerId?: string;
-  customerId?: string;
-  receiptNumber?: string;
-  tax?: number;
-  orderType?: 'WhatsApp' | 'Direct';
-}
-
-export interface WholesaleOrder {
-  id: string;
-  supplier: string;
-  items: { name: string; quantity: number; price: number }[];
-  total: number;
-  status: 'Pending' | 'Approved' | 'Shipped' | 'Delivered';
-  paymentMethod: 'Cash' | 'Credit' | 'Wallet';
-  date: string;
-  uid: string;
-}
-
-export interface CreditApplication {
-  id: string;
-  uid: string;
-  businessName: string;
-  tinNumber: string;
-  monthlyRevenue: number;
-  status: 'Pending' | 'Approved' | 'Rejected';
-  requestedLimit: number;
-  date: string;
-}
-
-export interface Message {
-  id: string;
-  role: 'user' | 'model' | 'system';
-  text: string;
-  timestamp: number;
-  isLoading?: boolean;
-  groundingMetadata?: any;
-}
-
+// Payment Methods Interface
 export interface PaymentMethods {
   mpesa: string;
   tigopesa: string;
@@ -259,70 +163,120 @@ export interface PaymentMethods {
   halopesa: string;
 }
 
-export interface Service {
+// Invoice Interface
+export interface Invoice {
   id: string;
-  name: string;
-  description: string;
-  isEnabled: boolean;
-}
-
-export interface SubscriptionPackage {
-  id: string;
-  name: string;
-  price: number;
-  period: 'Monthly' | 'Yearly';
-  services: Service[];
-  isPopular?: boolean;
-  color: string;
-}
-
-export interface Transaction {
-  id: string;
-  type: 'Deposit' | 'Withdrawal' | 'Payment';
-  amount: number;
-  provider: 'M-PESA' | 'TIGO PESA' | 'AIRTEL MONEY' | 'BANK' | 'Wallet';
+  uid: string;
+  customerId: string;
+  customerName: string;
+  invoiceNumber: string;
   date: string;
-  status: 'Completed' | 'Pending' | 'Failed';
-  phone?: string;
-  uid: string;
+  dueDate?: string;
+  items: Array<{
+    name: string;
+    quantity: number;
+    price: number;
+  }>;
+  subtotal: number;
+  tax?: number;
+  total: number;
+  status: string;
+  createdAt?: string;
 }
 
-export interface DeliveryTask {
+// Inventory Types
+export interface InventoryAdjustment {
   id: string;
-  orderId: string;
-  customer: string;
-  address: string;
-  driver?: string;
-  status: 'Unassigned' | 'In Transit' | 'Delivered';
-  eta?: string;
   uid: string;
-}
-
-export interface Driver {
-  id: string;
-  name: string;
-  phone: string;
-  plateNumber: string;
-  status: 'Available' | 'Busy';
-  uid: string;
-}
-
-export interface WholesaleItem {
-  id: string;
-  name: string;
-  supplier: string;
-  price: number;
-  moq: number;
-  unit: string;
-  image: string;
-  category: string;
-  discount?: number;
-}
-
-// Analytics Types
-export interface DailyStat {
+  productId: string;
+  productName: string;
+  type: 'add' | 'remove' | 'set';
+  quantity: number;
+  reason?: string;
   date: string;
-  income: number;
-  expenses: number;
-  profit: number;
+  createdAt?: string;
+}
+
+export interface ItemGroup {
+  id: string;
+  uid: string;
+  name: string;
+  description?: string;
+  createdAt?: string;
+}
+
+export interface ItemCategory {
+  id: string;
+  uid: string;
+  name: string;
+  description?: string;
+  createdAt?: string;
+}
+
+export interface ItemUnit {
+  id: string;
+  uid: string;
+  name: string;
+  abbreviation?: string;
+  createdAt?: string;
+}
+
+export interface UnitConversion {
+  id: string;
+  uid: string;
+  fromUnitId: string;
+  toUnitId: string;
+  conversionFactor: number;
+  createdAt?: string;
+}
+
+// New types added for recent features
+
+export interface StaffTask {
+  id: string;
+  uid: string; // Store owner UID
+  title: string;
+  description?: string;
+  assignedTo?: string; // Staff UID (optional - if null, assigned to all staff)
+  assignedToName?: string;
+  dueDate?: string;
+  completed: boolean;
+  completedBy?: string;
+  completedByName?: string;
+  completedAt?: string;
+  points?: number; // Points awarded for completion
+  createdAt: string;
+  createdBy: string;
+  createdByName?: string;
+}
+
+export interface StaffPerformance {
+  uid: string;
+  name: string;
+  email?: string;
+  photoURL?: string;
+  totalPoints: number;
+  completedTasks: number;
+  streak: number; // Consecutive days with completed tasks
+  lastActiveDate?: string;
+}
+
+export interface UserNotificationSettings {
+  uid: string;
+  emailNotifications: boolean;
+  smsNotifications: boolean;
+  whatsappNotifications: boolean;
+  orderUpdates: boolean;
+  promotions: boolean;
+  securityAlerts: boolean;
+}
+
+export interface TwoFactorAuth {
+  uid: string;
+  enabled: boolean;
+  method: 'email' | 'phone' | null;
+  phoneNumber?: string;
+  emailAddress?: string;
+  verified: boolean;
+  secret?: string; // For TOTP (if implemented later)
 }

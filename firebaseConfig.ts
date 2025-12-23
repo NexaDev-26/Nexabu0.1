@@ -8,6 +8,7 @@ import {
   persistentMultipleTabManager 
 } from "firebase/firestore";
 import { getAuth, Auth, GoogleAuthProvider } from "firebase/auth";
+import { getStorage, FirebaseStorage } from "firebase/storage";
 
 const getEnv = (key: string, defaultValue: string) => {
   if (typeof process !== 'undefined' && process.env && process.env[key]) {
@@ -26,9 +27,10 @@ const firebaseConfig = {
   measurementId: getEnv("REACT_APP_FIREBASE_MEASUREMENT_ID", "G-6S0KP0DBC2")
 };
 
-let app: FirebaseApp;
-let authInstance: Auth;
-let dbInstance: Firestore;
+let app: FirebaseApp | undefined;
+let authInstance: Auth | undefined;
+let dbInstance: Firestore | undefined;
+let storageInstance: FirebaseStorage | undefined;
 let firebaseEnabled = false;
 
 if (firebaseConfig.apiKey) {
@@ -52,14 +54,19 @@ if (firebaseConfig.apiKey) {
       dbInstance = getFirestore(app);
     }
 
+    // 4. Initialize Storage
+    storageInstance = getStorage(app);
+
     firebaseEnabled = true;
     console.log("Firebase initialized: Persistence Enabled");
   } catch (error) {
     console.error("Firebase init error:", error);
+    firebaseEnabled = false;
   }
 }
 
-export const auth = authInstance!;
-export const db = dbInstance!;
+export const auth = authInstance as Auth;
+export const db = dbInstance as Firestore;
+export const storage = storageInstance as FirebaseStorage;
 export const isFirebaseEnabled = firebaseEnabled;
 export const googleProvider = new GoogleAuthProvider();

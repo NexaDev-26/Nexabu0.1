@@ -1,9 +1,14 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { ArrowUpRight, Users, ShoppingBag, DollarSign, AlertTriangle, CheckCircle, Package, TrendingUp, Clock, ArrowRight, BrainCircuit, Sparkles, Building, Calendar, FileText, PieChart } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
 import { chatWithGemini } from '../services/geminiService';
+import { Expense, UserRole } from '../types';
+import { db, isFirebaseEnabled } from '../firebaseConfig';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { exportSalesReport, exportExpenseReport } from '../utils/exportUtils';
+import { Download } from 'lucide-react';
 
 const StatCard: React.FC<{ title: string; value: string; subValue?: string; icon: React.ReactNode; color: string; }> = ({ title, value, subValue, icon, color }) => (
   <div className="bg-white dark:bg-neutral-900 p-6 rounded-xl shadow-sm border border-neutral-200 dark:border-neutral-800 hover:shadow-md transition-all">
@@ -24,12 +29,37 @@ export const Dashboard: React.FC = () => {
   const { user, orders, products, branches } = useAppContext();
   const [forecast, setForecast] = useState<string | null>(null);
   const [isForecasting, setIsForecasting] = useState(false);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+
+  // Load expenses
+  useEffect(() => {
+    if (isFirebaseEnabled && db && user?.uid) {
+      const targetUid = (user.role === UserRole.VENDOR || user.role === UserRole.PHARMACY) ? user.uid : user.employerId;
+      const handleError = (error: any) => {
+        if (error.code !== 'permission-denied') {
+          console.error("Expenses listener error:", error);
+        }
+      };
+
+      const unsub = onSnapshot(
+        query(collection(db, 'expenses'), where('uid', '==', targetUid)),
+        (snapshot) => {
+          const data = snapshot.docs.map(d => ({...d.data(), id: d.id} as Expense));
+          data.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+          setExpenses(data);
+        },
+        handleError
+      );
+
+      return () => unsub();
+    }
+  }, [user]);
 
   // --- Real Data Calculations ---
   const stats = useMemo(() => {
     const totalIncome = orders.reduce((sum, o) => sum + (o.status !== 'Cancelled' ? o.total : 0), 0);
-    // Mock expenses as 60% of income for demo purposes if no Purchase Orders
-    const totalExpenses = totalIncome * 0.6; 
+    // Use real expenses from database, fallback to 0 if none exist
+    const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0); 
     const totalProfit = totalIncome - totalExpenses;
     
     const paidInvoices = orders.filter(o => o.status === 'Delivered').length;
@@ -40,14 +70,22 @@ export const Dashboard: React.FC = () => {
         ? Math.ceil((new Date().getTime() - new Date(user.activationDate).getTime()) / (1000 * 3600 * 24))
         : 1;
 
-    // Generate Chart Data (Mock last 7 days based on orders)
+    // Generate Chart Data (Real data for last 7 days)
     const chartData = Array.from({length: 7}, (_, i) => {
         const d = new Date();
         d.setDate(d.getDate() - (6-i));
         const dayStr = d.toLocaleDateString('en-US', { weekday: 'short' });
-        const dayOrders = orders.filter(o => new Date(o.date).toDateString() === d.toDateString());
+        const dayStrFull = d.toISOString().split('T')[0];
+        const dayOrders = orders.filter(o => {
+          const orderDate = new Date(o.date).toISOString().split('T')[0];
+          return orderDate === dayStrFull;
+        });
+        const dayExpenses = expenses.filter(e => {
+          const expenseDate = new Date(e.date).toISOString().split('T')[0];
+          return expenseDate === dayStrFull;
+        });
         const income = dayOrders.reduce((sum, o) => sum + o.total, 0);
-        const expense = income * 0.6; // Mock margin
+        const expense = dayExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
         return { name: dayStr, Income: income, Expense: expense, Profit: income - expense };
     });
 
@@ -64,7 +102,7 @@ export const Dashboard: React.FC = () => {
         cashSales: totalIncome,
         chartData
     };
-  }, [orders, products, branches, user]);
+  }, [orders, products, branches, user, expenses]);
 
   const handleGenerateForecast = async () => {
       setIsForecasting(true);
@@ -82,8 +120,22 @@ export const Dashboard: React.FC = () => {
           <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">Dashboard</h2>
           <p className="text-neutral-500 dark:text-neutral-400 text-sm">Overview for {user?.storeName}</p>
         </div>
+        <div className="flex items-center gap-3">
         <div className="bg-neutral-100 dark:bg-neutral-800 px-4 py-2 rounded-lg text-sm font-mono">
             {new Date().toDateString()}
+          </div>
+          <button
+            onClick={() => exportSalesReport(orders, `sales_report_${new Date().toISOString().split('T')[0]}`)}
+            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-500 flex items-center gap-2 text-sm"
+          >
+            <Download className="w-4 h-4" /> Export Sales
+          </button>
+          <button
+            onClick={() => exportExpenseReport(expenses, `expense_report_${new Date().toISOString().split('T')[0]}`)}
+            className="px-4 py-2 bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-lg hover:bg-neutral-300 dark:hover:bg-neutral-600 flex items-center gap-2 text-sm"
+          >
+            <Download className="w-4 h-4" /> Export Expenses
+          </button>
         </div>
       </div>
 

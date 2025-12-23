@@ -1,7 +1,8 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Order } from '../types';
-import { X, Share2, Printer } from 'lucide-react';
+import { X, Share2, Printer, FileText } from 'lucide-react';
+import { InvoiceTemplateSelector } from './InvoiceTemplateSelector';
+import { useAppContext } from '../hooks/useAppContext';
 
 interface ReceiptProps {
     order: Order;
@@ -9,7 +10,18 @@ interface ReceiptProps {
 }
 
 export const Receipt: React.FC<ReceiptProps> = ({ order, onClose }) => {
+    const { user } = useAppContext();
+    const [showTemplateSelector, setShowTemplateSelector] = useState(false);
     const subtotal = order.total - (order.tax || 0);
+    
+    const storeInfo = {
+        name: user?.storeName || 'NEXABU STORE',
+        address: user?.storeAddress || 'Sinza, Dar es Salaam',
+        phone: user?.phone || '',
+        email: user?.email || '',
+        logo: user?.storeLogo || undefined,
+        tin: user?.tin || '123-456-789'
+    };
 
     const handleShare = () => {
         const message = `*Receipt for Order #${order.id}*\n\n` +
@@ -39,7 +51,7 @@ export const Receipt: React.FC<ReceiptProps> = ({ order, onClose }) => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-4">
-                        <span className="text-neutral-500">RECEIPT NO:</span> <span className="text-right font-bold">{order.receiptNumber}</span>
+                        <span className="text-neutral-500">RECEIPT NO:</span> <span className="text-right font-bold">{order.receiptNumber || `TRA-${order.id.slice(-4)}`}</span>
                         <span className="text-neutral-500">DATE:</span> <span className="text-right">{new Date(order.date).toLocaleDateString()}</span>
                         <span className="text-neutral-500">TIME:</span> <span className="text-right">{new Date(order.date).toLocaleTimeString()}</span>
                     </div>
@@ -89,11 +101,24 @@ export const Receipt: React.FC<ReceiptProps> = ({ order, onClose }) => {
                     <button onClick={handleShare} className="flex-1 bg-green-600 text-white py-3 rounded-xl font-medium hover:bg-green-500 transition-colors flex justify-center items-center gap-2 text-sm">
                         <Share2 className="w-4 h-4" /> Share to WhatsApp
                     </button>
+                    <button onClick={() => setShowTemplateSelector(true)} className="bg-orange-600 text-white p-3 rounded-xl hover:bg-orange-500 transition-colors" title="Choose Template">
+                        <FileText className="w-5 h-5" />
+                    </button>
                     <button onClick={() => window.print()} className="bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200 p-3 rounded-xl hover:opacity-80 transition-opacity">
                         <Printer className="w-5 h-5" />
                     </button>
                 </div>
             </div>
+            
+            {/* Invoice Template Selector */}
+            <InvoiceTemplateSelector
+                invoice={order}
+                isOpen={showTemplateSelector}
+                onClose={() => setShowTemplateSelector(false)}
+                storeInfo={storeInfo}
+            />
         </div>
     );
 };
+
+export default Receipt;

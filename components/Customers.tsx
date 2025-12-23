@@ -1,17 +1,22 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Customer } from '../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Customer, Order, Invoice, UserRole } from '../types';
 import { useAppContext } from '../hooks/useAppContext';
-import { Plus, Search, Trash2, Edit2, Upload, FileText, Share2, Printer, RefreshCw, Filter, User, MapPin, Phone, Mail, Camera, Save, X } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, Upload, FileText, Share2, Printer, RefreshCw, Filter, User, MapPin, Phone, Mail, Camera, Save, X, Eye, DollarSign, Clock, Send, History, ShoppingCart } from 'lucide-react';
 import { db, isFirebaseEnabled } from '../firebaseConfig';
-import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { LocationDropdown } from './LocationDropdown';
+import { QuickOrderModal } from './Ordering/QuickOrderModal';
 
 export const Customers: React.FC = () => {
-  const { user, showNotification } = useAppContext();
+  const { user, products, showNotification } = useAppContext();
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [view, setView] = useState<'list' | 'form'>('list');
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [view, setView] = useState<'list' | 'form' | 'details'>('list');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [isQuickOrderOpen, setIsQuickOrderOpen] = useState(false);
   
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -20,17 +25,32 @@ export const Customers: React.FC = () => {
 
   useEffect(() => {
     if (isFirebaseEnabled && db && user?.uid) {
-        const targetUid = user.employerId || user.uid;
-        const q = query(collection(db, 'customers'), where('uid', '==', targetUid));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            setCustomers(snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Customer)));
-        }, (error) => {
-            // Suppress permission-denied errors which happen when auth state is in flux
+        const targetUid = (user.role === UserRole.VENDOR || user.role === UserRole.PHARMACY) ? user.uid : user.employerId;
+        
+        const handleError = (error: any) => {
             if (error.code !== 'permission-denied') {
                 console.error("Customers sync error:", error);
             }
-        });
-        return () => unsubscribe();
+        };
+
+        const unsubs = [
+            onSnapshot(query(collection(db, 'customers'), where('uid', '==', targetUid)), 
+                (snapshot) => setCustomers(snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Customer))), handleError),
+            onSnapshot(query(collection(db, 'orders'), where('sellerId', '==', targetUid)),
+                (snapshot) => {
+                  const data = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Order));
+                  data.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+                  setOrders(data);
+                }, handleError),
+            onSnapshot(query(collection(db, 'invoices'), where('uid', '==', targetUid)),
+                (snapshot) => {
+                  const data = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Invoice));
+                  data.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+                  setInvoices(data);
+                }, handleError)
+        ];
+
+        return () => unsubs.forEach(unsub => unsub());
     }
   }, [user]);
 
@@ -88,6 +108,11 @@ export const Customers: React.FC = () => {
       setView('form');
   };
 
+  const openDetails = (c: Customer) => {
+      setSelectedCustomer(c);
+      setView('details');
+  };
+
   const filteredCustomers = customers.filter(c => 
       c.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
       c.phone.includes(searchTerm)
@@ -95,7 +120,7 @@ export const Customers: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-        {view === 'list' ? (
+        {view === 'list' && (
             <>
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
@@ -174,6 +199,7 @@ export const Customers: React.FC = () => {
                                         </td>
                                         <td className="p-4 text-right">
                                             <div className="flex justify-end gap-2">
+                                                <button onClick={() => openDetails(c)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-green-500" title="View Details"><Eye className="w-4 h-4"/></button>
                                                 <button onClick={() => openEdit(c)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-blue-500"><Edit2 className="w-4 h-4"/></button>
                                                 <button onClick={() => handleDelete(c.id)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-red-500"><Trash2 className="w-4 h-4"/></button>
                                             </div>
@@ -185,7 +211,8 @@ export const Customers: React.FC = () => {
                     </div>
                 </div>
             </>
-        ) : (
+        )}
+        {view === 'form' && (
             <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm p-6 max-w-4xl mx-auto">
                 <div className="flex justify-between items-center mb-6 border-b border-neutral-100 dark:border-neutral-800 pb-4">
                     <h3 className="font-bold text-lg text-neutral-900 dark:text-white">{editingId ? 'Edit Customer' : 'Add New Customer'}</h3>
@@ -298,6 +325,216 @@ export const Customers: React.FC = () => {
                 </div>
             </div>
         )}
+        {view === 'details' && selectedCustomer && (
+            <CustomerDetailsView 
+                customer={selectedCustomer}
+                orders={orders}
+                invoices={invoices}
+                onBack={() => setView('list')}
+                onSendReminder={(invoiceId: string) => {
+                    showNotification("Payment reminder sent", "success");
+                  }}
+                onQuickOrder={() => setIsQuickOrderOpen(true)}
+              />
+          )}
+        {selectedCustomer && (
+          <QuickOrderModal
+            isOpen={isQuickOrderOpen}
+            onClose={() => setIsQuickOrderOpen(false)}
+            customer={selectedCustomer}
+            products={products}
+            userRole={user?.role || UserRole.VENDOR}
+          />
+        )}
+      </div>
+    );
+};
+
+const CustomerDetailsView: React.FC<{
+  customer: Customer;
+  orders: Order[];
+  invoices: Invoice[];
+  onBack: () => void;
+  onSendReminder: (invoiceId: string) => void;
+  onQuickOrder?: () => void;
+}> = ({ customer, orders, invoices, onBack, onSendReminder, onQuickOrder }) => {
+  const customerOrders = useMemo(() => 
+    orders.filter(o => o.customerName === customer.fullName || o.customerId === customer.id),
+    [orders, customer]
+  );
+
+  const customerInvoices = useMemo(() =>
+    invoices.filter(inv => inv.customerId === customer.id || inv.customerName === customer.fullName),
+    [invoices, customer]
+  );
+
+  const outstandingInvoices = useMemo(() =>
+    customerInvoices.filter(inv => inv.status !== 'Paid' && inv.status !== 'Cancelled'),
+    [customerInvoices]
+  );
+
+  const totalOutstanding = useMemo(() =>
+    outstandingInvoices.reduce((sum, inv) => sum + inv.total, 0) + (customer.openingBalance || 0),
+    [outstandingInvoices, customer]
+  );
+
+  const totalSpent = useMemo(() =>
+    customerOrders.filter(o => o.status === 'Delivered').reduce((sum, o) => sum + o.total, 0),
+    [customerOrders]
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
+          <div>
+            <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">{customer.fullName}</h2>
+            <p className="text-sm text-neutral-500">{customer.type} • {customer.phone}</p>
+          </div>
+        </div>
+        {onQuickOrder && (
+          <button
+            onClick={onQuickOrder}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-500 font-bold shadow-lg shadow-orange-900/20"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            Quick Order
+          </button>
+        )}
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800">
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">Total Orders</p>
+          <h3 className="text-2xl font-bold text-neutral-900 dark:text-white mt-1">{customerOrders.length}</h3>
+        </div>
+        <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800">
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">Total Spent</p>
+          <h3 className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">TZS {totalSpent.toLocaleString()}</h3>
+        </div>
+        <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800">
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">Outstanding</p>
+          <h3 className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">TZS {totalOutstanding.toLocaleString()}</h3>
+        </div>
+        <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800">
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">Outstanding Invoices</p>
+          <h3 className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{outstandingInvoices.length}</h3>
+        </div>
+      </div>
+
+      {/* Outstanding Invoices */}
+      {outstandingInvoices.length > 0 && (
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
+            <h3 className="font-bold text-lg text-neutral-900 dark:text-white">Outstanding Invoices</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-neutral-50 dark:bg-neutral-800">
+                <tr>
+                  <th className="p-3 text-left">Invoice #</th>
+                  <th className="p-3 text-left">Date</th>
+                  <th className="p-3 text-left">Due Date</th>
+                  <th className="p-3 text-right">Amount</th>
+                  <th className="p-3 text-left">Status</th>
+                  <th className="p-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                {outstandingInvoices.map(inv => (
+                  <tr key={inv.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                    <td className="p-3 font-mono text-xs text-neutral-900 dark:text-white">{inv.invoiceNumber}</td>
+                    <td className="p-3 text-neutral-600 dark:text-neutral-400">{new Date(inv.date).toLocaleDateString()}</td>
+                    <td className="p-3 text-neutral-600 dark:text-neutral-400">{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '-'}</td>
+                    <td className="p-3 text-right font-bold text-neutral-900 dark:text-white">TZS {inv.total.toLocaleString()}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        inv.status === 'Overdue' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                        'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+                      }`}>
+                        {inv.status}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <button
+                        onClick={() => onSendReminder(inv.id)}
+                        className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-blue-500"
+                        title="Send Reminder"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Transaction History */}
+      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
+          <h3 className="font-bold text-lg text-neutral-900 dark:text-white flex items-center gap-2">
+            <History className="w-5 h-5" /> Transaction History
+          </h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-neutral-50 dark:bg-neutral-800">
+              <tr>
+                <th className="p-3 text-left">Date</th>
+                <th className="p-3 text-left">Type</th>
+                <th className="p-3 text-left">Reference</th>
+                <th className="p-3 text-right">Amount</th>
+                <th className="p-3 text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              {[...customerOrders.map(o => ({ ...o, type: 'Order' as const, date: o.date })),
+                  ...customerInvoices.map(inv => ({ ...inv, type: 'Invoice' as const, date: inv.date }))]
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                .slice(0, 20)
+                .map((item: any, idx) => (
+                  <tr key={idx} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                    <td className="p-3 text-neutral-600 dark:text-neutral-400">{new Date(item.date).toLocaleDateString()}</td>
+                    <td className="p-3">
+                      <span className="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                        {item.type}
+                      </span>
+                    </td>
+                    <td className="p-3 text-neutral-900 dark:text-white font-mono text-xs">
+                      {item.type === 'Invoice' ? item.invoiceNumber : item.id?.substring(0, 8)}
+                    </td>
+                    <td className="p-3 text-right font-bold text-neutral-900 dark:text-white">
+                      TZS {item.total?.toLocaleString() || 0}
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        item.status === 'Paid' || item.status === 'Delivered' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
+                        item.status === 'Pending' || item.status === 'Processing' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                        item.status === 'Overdue' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300'
+                      }`}>
+                        {item.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+          {customerOrders.length === 0 && customerInvoices.length === 0 && (
+            <div className="p-12 text-center text-neutral-500">
+              <History className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No transaction history</p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
