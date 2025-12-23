@@ -22,6 +22,8 @@ const Prescriptions = lazy(() => import('./components/Prescriptions').then(m => 
 const AdminUsers = lazy(() => import('./components/AdminUsers').then(m => ({ default: m.AdminUsers })));
 const AdminPackages = lazy(() => import('./components/AdminPackages').then(m => ({ default: m.AdminPackages })));
 const Subscription = lazy(() => import('./components/Subscription').then(m => ({ default: m.Subscription })));
+const SubscriptionPaymentVerification = lazy(() => import('./components/SubscriptionPaymentVerification').then(m => ({ default: m.SubscriptionPaymentVerification })));
+const OrderManagement = lazy(() => import('./components/OrderManagement').then(m => ({ default: m.OrderManagement })));
 const Delivery = lazy(() => import('./components/Delivery').then(m => ({ default: m.Delivery })));
 const StaffManagement = lazy(() => import('./components/StaffManagement').then(m => ({ default: m.StaffManagement })));
 const SalesRepDashboard = lazy(() => import('./components/SalesRepDashboard').then(m => ({ default: m.SalesRepDashboard })));
@@ -57,6 +59,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { initOfflineDB } from './services/offlineService';
 import { setupAutoSync } from './services/syncService';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { SubscriptionStatusBanner } from './components/SubscriptionStatusBanner';
 
 const getInitials = (name?: string): string => {
   if (!name) return 'U';
@@ -269,6 +272,18 @@ export const App: React.FC = () => {
             <AdminPackages adminPaymentDetails={adminPaymentDetails} setAdminPaymentDetails={setAdminPaymentDetails} />
           </Suspense>
         );
+      case 'payment-verification':
+        return (
+          <Suspense fallback={<LoadingFallback />}>
+            <SubscriptionPaymentVerification />
+          </Suspense>
+        );
+      case 'order-verification':
+        return (
+          <Suspense fallback={<LoadingFallback />}>
+            <OrderManagement />
+          </Suspense>
+        );
       case 'subscription': 
         return (
           <Suspense fallback={<LoadingFallback />}>
@@ -375,10 +390,16 @@ export const App: React.FC = () => {
                     <SidebarItem icon={<Store size={20} />} label="Marketplace" active={view === 'storefront'} onClick={() => navigate('storefront')} />
                     <SidebarItem icon={<LayoutDashboard size={20} />} label="My Dashboard" active={view === 'dashboard'} onClick={() => navigate('dashboard')} />
                   </>}
-                  {[UserRole.SELLER, UserRole.PHARMACIST, UserRole.STAFF].includes(role) && hasPermission('canAccessDashboard') && (
-                    <SidebarItem icon={<LayoutDashboard size={20} />} label="Dashboard" active={view === 'dashboard'} onClick={() => navigate('dashboard')} />
+                  {[UserRole.SELLER, UserRole.PHARMACIST, UserRole.STAFF].includes(role) && (
+                    <>
+                      <SidebarItem icon={<Store size={20} />} label="Storefront" active={view === 'storefront'} onClick={() => navigate('storefront')} />
+                      {hasPermission('canAccessDashboard') && (
+                        <SidebarItem icon={<LayoutDashboard size={20} />} label="Dashboard" active={view === 'dashboard'} onClick={() => navigate('dashboard')} />
+                      )}
+                    </>
                   )}
                   {(role === UserRole.VENDOR || role === UserRole.PHARMACY || role === UserRole.MANAGER) && <>
+                    <SidebarItem icon={<Store size={20} />} label="Storefront" active={view === 'storefront'} onClick={() => navigate('storefront')} />
                     <SidebarItem icon={<LayoutDashboard size={20} />} label="Dashboard" active={view === 'dashboard' || view === 'analytics'} onClick={() => navigate('dashboard')} />
                     {hasPermission('canAccessOrders') && (
                       <SidebarItem icon={<ShoppingBag size={20} />} label="Orders" active={view === 'orders'} onClick={() => navigate('orders')} />
@@ -441,7 +462,11 @@ export const App: React.FC = () => {
                   {role === UserRole.ADMIN && <>
                     <SidebarItem icon={<Users size={20} />} label="User Management" active={view === 'users'} onClick={() => navigate('users')} />
                     <SidebarItem icon={<Package size={20} />} label="Manage Packages" active={view === 'packages'} onClick={() => navigate('packages')} />
+                    <SidebarItem icon={<DollarSign size={20} />} label="Payment Verification" active={view === 'payment-verification'} onClick={() => navigate('payment-verification')} />
                   </>}
+                  {(role === UserRole.VENDOR || role === UserRole.PHARMACY) && (
+                    <SidebarItem icon={<DollarSign size={20} />} label="Order Payments" active={view === 'order-verification'} onClick={() => navigate('order-verification')} />
+                  )}
                 </>
               );
             })()}
@@ -563,7 +588,10 @@ export const App: React.FC = () => {
               </div>
             </div>
           </header>
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-neutral-50 dark:bg-neutral-950 pb-20 lg:pb-6">{renderContent()}</div>
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-neutral-50 dark:bg-neutral-950 pb-20 lg:pb-6">
+            <SubscriptionStatusBanner />
+            {renderContent()}
+          </div>
           {/* NeBu Bot - positioned in right corner */}
           <div className="fixed bottom-4 right-4 z-40"><SmartBot /></div>
         </main>

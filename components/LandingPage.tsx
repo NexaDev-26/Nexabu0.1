@@ -196,7 +196,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignup
             description="For small shops and startups just getting started." 
             price="Free" 
             period="Forever" 
-            features={['Up to 20 Products', 'Basic Dashboard', '1 User Account', 'Community Support']} 
+            features={['Up to 20 Products', 'Basic Dashboard', '1 User Account', 'Mobile Money (M-Pesa/Tigo/Airtel)', '48-Hour Payouts', 'Basic History', 'Community Support']} 
             onSelect={onSignupClick} 
           />
           <PriceTier 
@@ -204,7 +204,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignup
             description="For growing businesses needing AI & automation." 
             price="25,000" 
             period="TZS / month" 
-            features={['Unlimited Products', 'AI SmartBot Assistant', 'WhatsApp Auto-Ordering', 'Advanced Analytics', 'Priority Support']} 
+            features={['Unlimited Products', 'AI SmartBot Assistant', 'WhatsApp Auto-Ordering', 'Advanced Analytics', '2FA Settings', 'Notifications Settings', 'Mobile Money (STK Push)', 'Auto-Bank Payouts', 'Nexa-Shield Escrow', '24-Hour Payouts', 'PDF Receipts', 'Priority Support']} 
             highlight 
             onSelect={onSignupClick} 
           />
@@ -213,7 +213,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick, onSignup
             description="For pharmacy chains and large retailers." 
             price="Custom" 
             period="Contact Us" 
-            features={['Multi-Branch Management', 'Custom API Integrations', 'Dedicated Account Manager', 'SLA & Contracts', 'White-label Options']} 
+            features={['Multi-Branch Management', 'Custom API Integrations', 'Dedicated Account Manager', '2FA Settings', 'Notifications Settings', 'Mobile Money (STK Push)', 'Real-time Bank Settlement', 'Nexa-Shield Escrow', 'Insurance Integration (NHIF/Private)', 'Instant Payouts', 'Advanced Financial Audit', 'SLA & Contracts', 'White-label Options']} 
             onSelect={onSignupClick} 
           />
         </div>

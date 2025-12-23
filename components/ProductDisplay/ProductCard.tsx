@@ -34,11 +34,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   vendor,
   className = ''
 }) => {
-  const hasDiscount = product.buyingPrice && product.buyingPrice < product.price && product.buyingPrice > 0;
-  const displayPrice = hasDiscount ? product.buyingPrice! : product.price;
-  const discountPercent = hasDiscount && product.buyingPrice && product.price
-    ? Math.round(((product.price - product.buyingPrice) / product.price) * 100)
+  const hasDiscount = product.discountPrice !== undefined && product.discountPrice < product.price;
+  const displayPrice = hasDiscount ? product.discountPrice! : product.price;
+  const discountPercent = hasDiscount && product.price
+    ? Math.round(((product.price - (product.discountPrice || product.price)) / product.price) * 100)
     : 0;
+
+  const getVendorInitials = (name?: string) => {
+    if (!name) return 'S';
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  };
   
   const isOutOfStock = showStock && product.trackInventory && (product.stock || 0) <= 0;
   const isLowStock = showStock && product.trackInventory && product.minStockLevel 
@@ -103,8 +110,32 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         </div>
         <div className="p-3">
           <h3 className="font-medium text-neutral-900 dark:text-white text-sm line-clamp-1 mb-1">{product.name}</h3>
+          {showStoreInfo && vendor && (
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden flex items-center justify-center text-[10px] font-bold text-neutral-700 dark:text-neutral-200">
+                {vendor.storeLogo ? (
+                  <img
+                    src={vendor.storeLogo}
+                    className="w-full h-full object-cover"
+                    alt={vendor.storeName || vendor.name || 'Store'}
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                ) : vendor.photoURL ? (
+                  <img
+                    src={vendor.photoURL}
+                    className="w-full h-full object-cover"
+                    alt={vendor.storeName || vendor.name || 'Store'}
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                ) : (
+                  <span>{getVendorInitials(vendor.storeName || vendor.name)}</span>
+                )}
+              </div>
+              <span className="text-xs text-neutral-500 line-clamp-1">{vendor.storeName || vendor.name || 'Store'}</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 flex-wrap mb-2">
-            {hasDiscount && product.price ? (
+            {hasDiscount ? (
               <>
                 <p className="text-orange-600 dark:text-orange-400 font-bold text-sm">TZS {displayPrice.toLocaleString()}</p>
                 <p className="text-neutral-400 dark:text-neutral-500 text-xs line-through">TZS {product.price.toLocaleString()}</p>
@@ -162,11 +193,46 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 {(product as any).sku && (
                   <p className="text-xs text-neutral-500 mt-0.5">SKU: {(product as any).sku}</p>
                 )}
+                {showStoreInfo && vendor && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden flex items-center justify-center text-[10px] font-bold text-neutral-700 dark:text-neutral-200">
+                      {vendor.storeLogo ? (
+                        <img
+                          src={vendor.storeLogo}
+                          className="w-full h-full object-cover"
+                          alt={vendor.storeName || vendor.name || 'Store'}
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : vendor.photoURL ? (
+                        <img
+                          src={vendor.photoURL}
+                          className="w-full h-full object-cover"
+                          alt={vendor.storeName || vendor.name || 'Store'}
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <span>{getVendorInitials(vendor.storeName || vendor.name)}</span>
+                      )}
+                    </div>
+                    <span className="text-xs text-neutral-500 line-clamp-1">{vendor.storeName || vendor.name || 'Store'}</span>
+                  </div>
+                )}
               </div>
               <div className="text-right flex-shrink-0">
-                <p className="font-bold text-orange-600 dark:text-orange-400 text-sm">
-                  TZS {displayPrice.toLocaleString()}
-                </p>
+                {hasDiscount ? (
+                  <div className="flex flex-col items-end">
+                    <p className="font-bold text-orange-600 dark:text-orange-400 text-sm">
+                      TZS {displayPrice.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-neutral-400 line-through">
+                      TZS {product.price.toLocaleString()}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="font-bold text-orange-600 dark:text-orange-400 text-sm">
+                    TZS {displayPrice.toLocaleString()}
+                  </p>
+                )}
                 {showStock && product.trackInventory && (
                   <p className={`text-xs mt-0.5 ${
                     isOutOfStock ? 'text-red-600' : isLowStock ? 'text-yellow-600' : 'text-neutral-500'

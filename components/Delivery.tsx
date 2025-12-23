@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, MapPin, Clock, User, Phone, MoreVertical, Navigation, X, Plus, Trash2, Loader2, RefreshCw } from 'lucide-react';
+import { Truck, MapPin, Clock, User, Phone, MoreVertical, Navigation, X, Plus, Trash2, Loader2, RefreshCw, CheckCircle } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
 import { DeliveryTask, Driver, UserRole } from '../types';
 import { db, isFirebaseEnabled } from '../firebaseConfig';
@@ -215,14 +215,26 @@ export const Delivery: React.FC = () => {
                             <div className="flex items-center gap-2">
                                 <User className="w-3 h-3 text-neutral-400" />
                                 <span className="text-xs text-neutral-600 dark:text-neutral-400 truncate max-w-[100px]">
-                                    {d.driver || 'No Driver'}
+                                    {d.driverName || d.driver || 'No Driver'}
                                 </span>
                             </div>
-                            {d.eta && (
-                                <div className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 font-medium">
-                                    <Clock className="w-3 h-3" /> {d.eta}
-                                </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                                {d.pickedUpAt && (
+                                    <div className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                                        <Clock className="w-3 h-3" /> Picked: {new Date(d.pickedUpAt).toLocaleTimeString()}
+                                    </div>
+                                )}
+                                {d.deliveredAt && (
+                                    <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                                        <CheckCircle className="w-3 h-3" /> Delivered: {new Date(d.deliveredAt).toLocaleTimeString()}
+                                    </div>
+                                )}
+                                {d.eta && !d.deliveredAt && (
+                                    <div className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 font-medium">
+                                        <Clock className="w-3 h-3" /> {d.eta}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {d.status === 'Unassigned' && (

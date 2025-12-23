@@ -6,7 +6,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Product, User, UserRole, Order, Customer } from '../types';
-import { ShoppingCart, Search, MapPin, ArrowLeft, X, Loader2, MessageCircle, Grid, List as ListIcon, LayoutGrid, Plus, Minus, Zap } from 'lucide-react';
+import { ShoppingCart, Search, MapPin, ArrowLeft, X, Loader2, MessageCircle, Grid, List as ListIcon, LayoutGrid, Plus, Minus, Zap, Package, Truck } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
 import { db, isFirebaseEnabled } from '../firebaseConfig';
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
@@ -18,12 +18,24 @@ import { SearchBar } from './ProductFilters/SearchBar';
 import { CategoryFilter } from './ProductFilters/CategoryFilter';
 import { BarcodeScanner } from './ProductActions/BarcodeScanner';
 import { QuickSale } from './QuickSale';
+import { PaymentModal } from './PaymentModal';
+import { MultiVendorCheckout } from './MultiVendorCheckout';
 import { findProductByBarcode } from '../utils/barcodeUtils';
 import { calculateOrderCommission, formatCommission } from '../utils/commissionUtils';
+import { generateDeliveryOtp } from '../utils/deliveryUtils';
+import { calculateDeliveryFee } from '../utils/deliveryFeeCalculator';
 
 export const Storefront: React.FC = () => {
   const { products, allUsers, cart, setCart, paymentMethods, showNotification, user, role } = useAppContext();
   const vendors = allUsers.filter(u => u.role === UserRole.VENDOR || u.role === UserRole.PHARMACY);
+  
+  // Get branches for current user (vendor/pharmacy) - TODO: Load from Firestore
+  const userBranches = useMemo(() => {
+    if (!user) return [];
+    // Branches would come from a branches collection
+    // For now, return empty array - can be populated from ManageProfile branches
+    return [];
+  }, [user]);
 
   const [viewMode, setViewMode] = useState<'vendors' | 'products' | 'nearby'>('vendors');
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
@@ -47,6 +59,14 @@ export const Storefront: React.FC = () => {
   const [discountCode, setDiscountCode] = useState('');
   const [discountAmount, setDiscountAmount] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isMultiVendorCheckoutOpen, setIsMultiVendorCheckoutOpen] = useState(false);
+  const [pendingOrderData, setPendingOrderData] = useState<any | null>(null);
+  const [pendingOrderAmount, setPendingOrderAmount] = useState(0);
+  const [deliveryType, setDeliveryType] = useState<'self-pickup' | 'home-delivery'>('self-pickup');
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
+  const [selectedChannel, setSelectedChannel] = useState<string>('POS');
 
   // Sales reps for the current vendor/pharmacy/manager
   const salesReps = useMemo(
@@ -215,8 +235,32 @@ export const Storefront: React.FC = () => {
     return filtered;
   }, [products, selectedVendorId, searchQuery, selectedCategory]);
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-  const totalAmount = Math.max(0, subtotal - discountAmount);
+  // Calculate subtotal using discount price if available
+  const subtotal = cart.reduce((sum, item) => {
+    const itemPrice = (item.product.discountPrice && item.product.discountPrice > 0 && item.product.discountPrice < item.product.price) 
+      ? item.product.discountPrice 
+      : item.product.price;
+    return sum + (itemPrice * item.quantity);
+  }, 0);
+  
+  // Calculate delivery fee when delivery type changes
+  useEffect(() => {
+    const fee = calculateDeliveryFee(deliveryType);
+    setDeliveryFee(fee);
+  }, [deliveryType]);
+  
+  // Check if cart has items from multiple vendors
+  const uniqueVendors = useMemo(() => {
+    const vendorIds = new Set(cart.map(item => item.product.uid));
+    return Array.from(vendorIds);
+  }, [cart]);
+
+  const isMultiVendorCart = uniqueVendors.length > 1;
+
+  // Calculate tax (18% VAT in Tanzania)
+  const taxRate = 0.18; // 18% VAT
+  const taxAmount = (subtotal - discountAmount) * taxRate;
+  const totalAmount = Math.max(0, subtotal - discountAmount + deliveryFee + taxAmount);
 
   const applyDiscount = () => {
     if (discountCode.toUpperCase() === 'SAVE10') {
@@ -232,75 +276,145 @@ export const Storefront: React.FC = () => {
   };
 
   const handleCheckout = async (viaWhatsapp: boolean = false) => {
+    // Validate cart
+    if (cart.length === 0) {
+      showNotification("Your cart is empty. Please add items before checkout.", "error");
+      return;
+    }
+
+    // Validate customer details
     if (!customerDetails.name || !customerDetails.phone) {
-      alert("Please provide your name and phone number.");
+      showNotification("Please provide your name and phone number.", "error");
+      return;
+    }
+
+    // If multi-vendor cart, open multi-vendor checkout
+    if (isMultiVendorCart) {
+      setIsMultiVendorCheckoutOpen(true);
+      return;
+    }
+
+    // Single vendor checkout (existing flow)
+
+    // Validate total amount
+    if (totalAmount <= 0) {
+      showNotification("Invalid order total. Please check your cart.", "error");
       return;
     }
     
     setIsProcessing(true);
-    const sellerId = selectedVendorId || cart[0]?.product.uid || 'unknown';
-    const selectedRep = selectedSalesRepId
-      ? salesReps.find(r => r.uid === selectedSalesRepId) || null
-      : null;
-    const commissionAmount = selectedRep
-      ? calculateOrderCommission({ total: totalAmount } as Order, selectedRep)
-      : 0;
     
-    // Construct Order Data
-    const orderData: Partial<Order> = {
-      customerName: customerDetails.name,
-      customerId: user?.uid || undefined,
-      date: new Date().toISOString(),
-      status: 'Pending',
-      total: totalAmount,
-      items: cart.map(i => ({
-        productId: i.product.id,
-        name: i.product.name,
-        price: i.product.price,
-        quantity: i.quantity
-      })),
-      sellerId,
-      salesRepId: selectedRep?.uid,
-      salesRepName: selectedRep?.name,
-      commission: commissionAmount > 0 ? commissionAmount : undefined
-    };
-
     try {
+      // Determine seller ID
+      const sellerId = selectedVendorId || cart[0]?.product.uid;
+      if (!sellerId || sellerId === 'unknown') {
+        throw new Error("Unable to determine seller. Please select a vendor or ensure products are available.");
+      }
+
+      // Validate seller exists
+      const sellerExists = vendors.some(v => v.uid === sellerId);
+      if (!sellerExists && role !== UserRole.VENDOR && role !== UserRole.PHARMACY) {
+        throw new Error("Selected vendor not found. Please try again.");
+      }
+
+      const selectedRep = selectedSalesRepId
+        ? salesReps.find(r => r.uid === selectedSalesRepId) || null
+        : null;
+      const commissionAmount = selectedRep
+        ? calculateOrderCommission({ total: totalAmount } as Order, selectedRep)
+        : 0;
+      
+      // Generate delivery OTP for delivery orders
+      const deliveryOtp = generateDeliveryOtp();
+      
+      // Validate cart items and use discount price if available
+      const orderItems = cart.map(i => {
+        if (!i.product.id || !i.product.name || !i.quantity) {
+          throw new Error(`Invalid product data: ${i.product.name || 'Unknown product'}`);
+        }
+        
+        // Use discount price if available, otherwise use regular price
+        const itemPrice = (i.product.discountPrice && i.product.discountPrice > 0 && i.product.discountPrice < i.product.price) 
+          ? i.product.discountPrice 
+          : i.product.price;
+        
+        if (!itemPrice || itemPrice <= 0) {
+          throw new Error(`Invalid price for product: ${i.product.name}`);
+        }
+        
+        return {
+        productId: i.product.id,
+        name: i.product.name, 
+          price: itemPrice,
+        quantity: i.quantity 
+        };
+      });
+
+      // Construct Order Data (only include defined values - Firestore doesn't allow undefined)
+      const orderData: any = {
+        customerName: customerDetails.name.trim(),
+        date: new Date().toISOString(),
+        status: 'Pending',
+        paymentStatus: 'PENDING_VERIFICATION', // Set payment status for verification flow
+        total: totalAmount,
+        items: orderItems,
+        sellerId: sellerId,
+        deliveryOtp: deliveryOtp, // Add delivery OTP for secure delivery verification
+        deliveryType: deliveryType,
+        deliveryRequested: deliveryType === 'home-delivery',
+        createdAt: new Date().toISOString(),
+        // Tax, Discount, Refund fields
+        tax: taxAmount,
+        discount: discountAmount,
+        refund: 0, // Default to 0, can be updated later if refunded
+        // Branch and Channel fields
+        channel: selectedChannel || 'POS'
+      };
+
+      // Only add optional fields if they have values
+      if (deliveryType === 'home-delivery' && deliveryFee > 0) {
+        orderData.deliveryFee = deliveryFee;
+      }
+      if (customerDetails.address?.trim()) {
+        orderData.deliveryAddress = customerDetails.address.trim();
+      }
+      if (user?.uid) {
+        orderData.customerId = user.uid;
+      }
+      if (selectedRep?.uid) {
+        orderData.salesRepId = selectedRep.uid;
+      }
+      if (selectedRep?.name) {
+        orderData.salesRepName = selectedRep.name;
+      }
+      if (commissionAmount > 0) {
+        orderData.commission = commissionAmount;
+      }
+      // Add branchId if selected (not 'all')
+      if (selectedBranchId && selectedBranchId !== 'all') {
+        orderData.branchId = selectedBranchId;
+      }
+
       const online = isOnline();
       
       if (online && isFirebaseEnabled && db) {
-        // Online: Save directly to Firestore
-        await addDoc(collection(db, "orders"), orderData);
+        // Don't create order yet - wait for payment confirmation
+        // Prepare order data and open payment modal
+        // Order will be created when customer confirms payment
         
-        // Add customer to vendor's customer list
-        try {
-          const customerQuery = query(
-            collection(db, 'customers'),
-            where('uid', '==', sellerId),
-            where('phone', '==', customerDetails.phone)
-          );
-          const existingCustomers = await getDocs(customerQuery);
-          
-          if (existingCustomers.empty) {
-            const customerData: Partial<Customer> = {
-              uid: sellerId,
-              fullName: customerDetails.name,
-              phone: customerDetails.phone,
-              email: '',
-              type: 'Customer',
-              status: 'Active',
-              openingBalance: 0,
-              dateAdded: new Date().toISOString(),
-              residentAddress: customerDetails.address || ''
-            };
-            await addDoc(collection(db, 'customers'), customerData);
-            showNotification("Customer added to vendor's list", "success");
-          }
-        } catch (customerError) {
-          console.error("Error adding customer to vendor list:", customerError);
-        }
+        // Show payment modal - order will be created after payment confirmation
+        setPendingOrderData({
+          ...orderData,
+          sellerId, // Include sellerId for customer creation
+          customerDetails // Include customer details for customer creation
+        });
+        setPendingOrderAmount(totalAmount);
+        setIsPaymentModalOpen(true);
+        setIsCheckoutOpen(false);
+        setIsProcessing(false);
         
-        showNotification("Order placed successfully!", "success");
+        showNotification("Please complete payment to place your order.", "info");
+        return; // Exit early - payment modal will handle order creation
       } else if (!online) {
         // Offline: Queue order for sync
         const orderWithId: Order = {
@@ -310,69 +424,33 @@ export const Storefront: React.FC = () => {
         
         await queueOrder(orderWithId);
         showNotification("Order queued for sync. Will be sent when online.", "info");
+        // Clear cart for offline orders
+        setCart([]);
+        await saveCart([]);
+        setIsCheckoutOpen(false);
+        setIsProcessing(false);
+        return;
       } else {
         showNotification("Database connection unavailable", "error");
+        setIsProcessing(false);
         return;
       }
-      
-      // Clear cart after successful order
-      setCart([]);
-      await saveCart([]);
-      setIsCheckoutOpen(false);
-      
-      if (viaWhatsapp) {
-        const vendor = vendors.find(v => v.uid === sellerId);
-        const vendorPhone = vendor?.phone || '';
-        
-        if (!vendorPhone) {
-          alert("This vendor has not configured a WhatsApp number. Order placed internally.");
-        } else {
-          const orderId = `ORD-${Date.now().toString().slice(-4)}`;
-          let message = `*NEW ORDER ${orderId}* %0a`;
-          message += `Date: ${new Date().toLocaleDateString()} %0a`;
-          message += `Customer: ${customerDetails.name} (${customerDetails.phone}) %0a`;
-          if (customerDetails.address) message += `Address: ${customerDetails.address} %0a`;
-          message += `----------------------------%0a`;
-          
-          cart.forEach(item => {
-            message += `${item.quantity} x ${item.product.name} @ TZS ${item.product.price.toLocaleString()} %0a`;
-          });
-          
-          message += `----------------------------%0a`;
-          message += `*Subtotal:* TZS ${subtotal.toLocaleString()} %0a`;
-          if (discountAmount > 0) message += `*Discount:* - TZS ${discountAmount.toLocaleString()} %0a`;
-          message += `*TOTAL:* TZS ${totalAmount.toLocaleString()} %0a%0a`;
-          message += `Please confirm this order. Thank you!`;
-          
-          const whatsappUrl = `https://wa.me/${vendorPhone.replace('+', '').replace(/\s/g, '')}?text=${message}`;
-          window.open(whatsappUrl, '_blank');
-        }
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-      
-      // Mark abandoned cart as recovered if exists
-      if (role === UserRole.CUSTOMER && user) {
-        try {
-          const { getAbandonedCarts } = await import('../services/cartRecoveryService');
-          const sellerId = selectedVendorId || (cart[0]?.product.uid) || 'unknown';
-          const abandonedCarts = await getAbandonedCarts(sellerId, 168);
-          const activeCart = abandonedCarts.find(c => c.customerPhone === customerDetails.phone && c.status === 'active');
-          // Note: In production, mark as recovered with order ID
-        } catch (error) {
-          console.error('Failed to mark cart as recovered:', error);
-        }
-      }
-      
-      setCart([]);
-      setIsCheckoutOpen(false);
-      setCustomerDetails({ name: '', phone: '', address: '' });
-      setDiscountCode('');
-      setDiscountAmount(0);
-      showNotification("Order placed successfully!", "success");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Checkout Error:", e);
-      showNotification("Failed to place order.", "error");
+      const errorMessage = e?.message || e?.toString() || "Unknown error occurred";
+      
+      // Provide specific error messages
+      if (errorMessage.includes("permission-denied") || errorMessage.includes("Permission denied")) {
+        showNotification("Permission denied. Please check your account permissions.", "error");
+      } else if (errorMessage.includes("network") || errorMessage.includes("Network")) {
+        showNotification("Network error. Please check your internet connection and try again.", "error");
+      } else if (errorMessage.includes("seller") || errorMessage.includes("vendor")) {
+        showNotification(errorMessage, "error");
+      } else if (errorMessage.includes("product")) {
+        showNotification(errorMessage, "error");
+        } else {
+        showNotification(`Failed to place order: ${errorMessage}`, "error");
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -381,7 +459,7 @@ export const Storefront: React.FC = () => {
   const selectedVendor = vendors.find(v => v.uid === selectedVendorId);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-auto animate-fade-in">
+    <div className="flex flex-col lg:flex-row gap-6 h-auto animate-fade-in px-4 sm:px-6">
       <div className="flex-1 space-y-4">
         {/* Header Section */}
         {selectedVendor ? (
@@ -458,7 +536,7 @@ export const Storefront: React.FC = () => {
 
         {/* Vendor List View */}
         {viewMode === 'vendors' && !selectedVendorId && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             {vendors.map(v => (
               <div 
                 key={v.uid} 
@@ -814,6 +892,81 @@ export const Storefront: React.FC = () => {
                 </div>
               )}
 
+              {/* Branch and Channel Selection */}
+              {(role === UserRole.VENDOR || role === UserRole.PHARMACY || role === UserRole.MANAGER) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Branch</h4>
+                    <select
+                      value={selectedBranchId}
+                      onChange={(e) => setSelectedBranchId(e.target.value)}
+                      className="w-full p-3 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none dark:text-white"
+                    >
+                      <option value="all">All Branches / Main</option>
+                      {userBranches.map((branch: any) => (
+                        <option key={branch.id} value={branch.id}>{branch.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Channel</h4>
+                    <select
+                      value={selectedChannel}
+                      onChange={(e) => setSelectedChannel(e.target.value)}
+                      className="w-full p-3 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none dark:text-white"
+                    >
+                      <option value="POS">POS / In-Store</option>
+                      <option value="Online">Online</option>
+                      <option value="Field">Field Sales</option>
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="Phone">Phone Order</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Delivery Type Selection */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Delivery Option</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setDeliveryType('self-pickup')}
+                    className={`p-4 border-2 rounded-lg transition-all flex items-center gap-3 ${
+                      deliveryType === 'self-pickup'
+                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+                        : 'border-neutral-200 dark:border-neutral-700 hover:border-orange-300'
+                    }`}
+                  >
+                    <Package className="w-5 h-5 text-orange-600" />
+                    <div className="text-left">
+                      <p className="font-medium text-neutral-900 dark:text-white text-sm">Self-Pickup</p>
+                      <p className="text-xs text-neutral-500">Free</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setDeliveryType('home-delivery')}
+                    className={`p-4 border-2 rounded-lg transition-all flex items-center gap-3 ${
+                      deliveryType === 'home-delivery'
+                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+                        : 'border-neutral-200 dark:border-neutral-700 hover:border-orange-300'
+                    }`}
+                  >
+                    <Truck className="w-5 h-5 text-orange-600" />
+                    <div className="text-left">
+                      <p className="font-medium text-neutral-900 dark:text-white text-sm">Home Delivery</p>
+                      <p className="text-xs text-neutral-500">TZS {deliveryFee.toLocaleString()}</p>
+                    </div>
+                  </button>
+                </div>
+                {deliveryType === 'home-delivery' && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                    <p className="text-xs text-blue-800 dark:text-blue-200">
+                      Please provide your delivery address above. Delivery fee: <strong>TZS {deliveryFee.toLocaleString()}</strong>
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Discount Code */}
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Discount Code</h4>
@@ -846,6 +999,18 @@ export const Storefront: React.FC = () => {
                     <span>- TZS {discountAmount.toLocaleString()}</span>
                   </div>
                 )}
+                {taxAmount > 0 && (
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-neutral-600 dark:text-neutral-400">Tax (18% VAT)</span>
+                    <span className="font-medium text-neutral-900 dark:text-white">TZS {taxAmount.toLocaleString()}</span>
+                  </div>
+                )}
+                {deliveryFee > 0 && (
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-neutral-600 dark:text-neutral-400">Delivery Fee</span>
+                    <span className="font-medium text-neutral-900 dark:text-white">TZS {deliveryFee.toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-bold text-lg pt-2 border-t border-neutral-200 dark:border-neutral-800 mt-2">
                   <span>Total to Pay</span>
                   <span>TZS {totalAmount.toLocaleString()}</span>
@@ -872,6 +1037,49 @@ export const Storefront: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Multi-Vendor Checkout */}
+      {isMultiVendorCheckoutOpen && (
+        <MultiVendorCheckout
+          isOpen={isMultiVendorCheckoutOpen}
+          onClose={() => setIsMultiVendorCheckoutOpen(false)}
+          cart={cart}
+          customerDetails={customerDetails}
+          deliveryType={deliveryType}
+          deliveryFee={deliveryFee}
+          onOrderCreated={(orderId) => {
+            setCart([]);
+            saveCart([]).catch(console.error);
+            setIsMultiVendorCheckoutOpen(false);
+            setIsCheckoutOpen(false);
+            showNotification("Multi-vendor order created! Vendors will verify your payments.", "success");
+          }}
+        />
+      )}
+
+      {/* Payment Modal (Single Vendor) */}
+      {isPaymentModalOpen && pendingOrderData && (
+        <PaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => {
+            setIsPaymentModalOpen(false);
+            setPendingOrderData(null);
+            setPendingOrderAmount(0);
+          }}
+          orderData={pendingOrderData}
+          amount={pendingOrderAmount}
+          sellerId={selectedVendorId || cart[0]?.product.uid}
+          onPaymentSubmitted={async (transactionRef: string) => {
+            // Payment submitted - clear cart and close modals
+            setCart([]);
+            await saveCart([]);
+            setIsPaymentModalOpen(false);
+            setPendingOrderData(null);
+            setPendingOrderAmount(0);
+            showNotification("Order placed! Payment submitted for vendor verification.", "success");
+          }}
+        />
       )}
 
       {/* Barcode Scanner Modal */}

@@ -1,7 +1,9 @@
 
 import React, { useState } from 'react';
-import { Check, Crown, Zap, ShieldCheck, X, Copy, CheckCircle, Loader2, Mail, ArrowRight, Calendar, Clock, CreditCard } from 'lucide-react';
+import { Check, Crown, Zap, ShieldCheck, X, Copy, CheckCircle, Loader2, Mail, ArrowRight, Calendar, Clock, CreditCard, KeyRound, Bell, Smartphone, Building2, Shield, Heart } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
+import { SubscriptionPaymentModal } from './SubscriptionPaymentModal';
+import { PaymentProvider } from '../types';
 
 interface SubscriptionProps {
     adminPaymentDetails?: {
@@ -13,11 +15,8 @@ interface SubscriptionProps {
 
 export const Subscription: React.FC<SubscriptionProps> = ({ adminPaymentDetails }) => {
   const { user } = useAppContext();
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
-  const [step, setStep] = useState<'details' | 'processing' | 'success'>('details');
-  const [userEmail, setUserEmail] = useState('');
-  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
 
   // Derive subscription data
   const planName = user?.subscriptionPlan || 'Starter';
@@ -32,7 +31,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({ adminPaymentDetails 
       price: 'Free',
       amount: 0,
       description: 'Perfect for small shops just getting started.',
-      features: ['Up to 20 Products', 'Basic Sales Dashboard', '1 User Account', 'Mobile App Access'],
+      features: ['Up to 20 Products', 'Basic Sales Dashboard', '1 User Account', 'Mobile App Access', 'Mobile Money (M-Pesa/Tigo/Airtel)', 'Manual Bank Settlement', '48-Hour Payouts', 'Basic Transaction History'],
       cta: 'Current Plan',
       active: planName === 'Starter'
     },
@@ -42,7 +41,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({ adminPaymentDetails 
       amount: 25000,
       period: '/ month',
       description: 'Supercharge your business with AI.',
-      features: ['Unlimited Products', 'AI SmartBot Assistant', 'WhatsApp Auto-Ordering', 'Advanced Analytics', 'Priority Support'],
+      features: ['Unlimited Products', 'AI SmartBot Assistant', 'WhatsApp Auto-Ordering', 'Advanced Analytics', '2FA Settings', 'Notifications Settings', 'Mobile Money (STK Push)', 'Auto-Bank Payouts', 'Nexa-Shield Escrow', '24-Hour Payouts', 'PDF Receipts', 'Priority Support'],
       cta: 'Upgrade Now',
       highlight: true,
       icon: <Zap className="w-5 h-5" />,
@@ -53,7 +52,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({ adminPaymentDetails 
       price: 'Custom',
       amount: 150000,
       description: 'For pharmacy chains and large retailers.',
-      features: ['Multi-Branch Management', 'Dedicated Account Manager', 'Custom API Integrations', 'Audit Logs & Security', 'White-label Options'],
+      features: ['Multi-Branch Management', 'Dedicated Account Manager', 'Custom API Integrations', 'Audit Logs & Security', '2FA Settings', 'Notifications Settings', 'Mobile Money (STK Push)', 'Real-time Bank Settlement', 'Nexa-Shield Escrow', 'Insurance Integration (NHIF/Private)', 'Instant Payouts', 'Advanced Financial Audit', 'White-label Options'],
       cta: 'Contact Sales',
       icon: <ShieldCheck className="w-5 h-5" />,
       active: planName === 'Enterprise'
@@ -61,21 +60,22 @@ export const Subscription: React.FC<SubscriptionProps> = ({ adminPaymentDetails 
   ];
 
   const handleUpgradeClick = (plan: any) => {
-      if (plan.active) return;
+      if (plan.active || plan.amount === 0) return;
       setSelectedPlan(plan);
-      setStep('details');
-      setGeneratedToken(null);
-      setIsCheckoutOpen(true);
+      setIsPaymentModalOpen(true);
   };
 
-  const handleConfirmPayment = () => {
-      if (!userEmail) return alert("Email required.");
-      setStep('processing');
-      setTimeout(() => {
-          const token = `NEXA-${Math.random().toString(36).substr(2, 4).toUpperCase()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-          setGeneratedToken(token);
-          setStep('success');
-      }, 2000);
+  const handlePaymentSubmitted = async (transactionRef: string, paymentMethod: PaymentProvider) => {
+      // Payment submitted - user will wait for admin verification
+      setIsPaymentModalOpen(false);
+      setSelectedPlan(null);
+  };
+
+  // Determine user tier for payment method availability
+  const getUserTier = (): 'Starter' | 'Premium' | 'Enterprise' => {
+      if (planName === 'Premium') return 'Premium';
+      if (planName === 'Enterprise') return 'Enterprise';
+      return 'Starter';
   };
 
   return (
@@ -128,12 +128,28 @@ export const Subscription: React.FC<SubscriptionProps> = ({ adminPaymentDetails 
               <span className="text-4xl font-bold text-neutral-900 dark:text-white">{plan.price}</span>
             </div>
             <div className="space-y-4 mb-8 flex-1">
-              {plan.features.map((feature, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <Check className="w-4 h-4 text-green-500 mt-0.5" />
-                  <span className="text-sm text-neutral-600 dark:text-neutral-300">{feature}</span>
-                </div>
-              ))}
+              {plan.features.map((feature, i) => {
+                const is2FA = feature.includes('2FA');
+                const isNotifications = feature.includes('Notifications');
+                const isMobileMoney = feature.includes('Mobile Money') || feature.includes('M-Pesa') || feature.includes('STK Push');
+                const isBank = feature.includes('Bank') || feature.includes('Payout');
+                const isEscrow = feature.includes('Escrow') || feature.includes('Nexa-Shield');
+                const isInsurance = feature.includes('Insurance') || feature.includes('NHIF');
+                return (
+                  <div key={i} className="flex items-start gap-3">
+                    <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    <div className="flex items-center gap-2 flex-1">
+                      {is2FA && <KeyRound className="w-3.5 h-3.5 text-orange-600 flex-shrink-0" />}
+                      {isNotifications && <Bell className="w-3.5 h-3.5 text-orange-600 flex-shrink-0" />}
+                      {isMobileMoney && <Smartphone className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />}
+                      {isBank && <Building2 className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />}
+                      {isEscrow && <Shield className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />}
+                      {isInsurance && <Heart className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />}
+                      <span className="text-sm text-neutral-600 dark:text-neutral-300">{feature}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             <button onClick={() => handleUpgradeClick(plan)} className={`w-full py-3 rounded-xl font-bold ${plan.active ? 'bg-neutral-100 text-neutral-400' : 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900'}`}>
               {plan.cta}
@@ -142,28 +158,21 @@ export const Subscription: React.FC<SubscriptionProps> = ({ adminPaymentDetails 
         ))}
       </div>
 
-      {/* CHECKOUT MODAL (Simplified for brevity) */}
-      {isCheckoutOpen && selectedPlan && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-md p-6 border dark:border-neutral-800">
-                  <div className="flex justify-between mb-4"><h3 className="font-bold text-lg dark:text-white">Upgrade to {selectedPlan.name}</h3><button onClick={()=>setIsCheckoutOpen(false)}><X/></button></div>
-                  {step === 'details' && (
-                      <div className="space-y-4">
-                          <input type="email" placeholder="Email for License Token" className="w-full p-3 border rounded-lg dark:bg-neutral-800 dark:text-white" value={userEmail} onChange={e=>setUserEmail(e.target.value)}/>
-                          <button onClick={handleConfirmPayment} className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold">Confirm Payment</button>
-                      </div>
-                  )}
-                  {step === 'processing' && <div className="text-center py-8"><Loader2 className="w-10 h-10 animate-spin mx-auto text-orange-600"/></div>}
-                  {step === 'success' && (
-                      <div className="text-center">
-                          <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-2"/>
-                          <h4 className="font-bold text-lg dark:text-white">Success!</h4>
-                          <div className="bg-neutral-100 dark:bg-neutral-800 p-3 rounded mt-4 font-mono font-bold">{generatedToken}</div>
-                          <button onClick={()=>setIsCheckoutOpen(false)} className="w-full bg-neutral-900 text-white py-2 rounded-lg mt-4">Close</button>
-                      </div>
-                  )}
-              </div>
-          </div>
+      {/* Payment Modal */}
+      {isPaymentModalOpen && selectedPlan && (
+        <SubscriptionPaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => {
+            setIsPaymentModalOpen(false);
+            setSelectedPlan(null);
+          }}
+          packageId={`pkg_${selectedPlan.name.toLowerCase()}`}
+          packageName={selectedPlan.name}
+          amount={selectedPlan.amount}
+          userTier={getUserTier()}
+          adminPaymentDetails={adminPaymentDetails}
+          onPaymentSubmitted={handlePaymentSubmitted}
+        />
       )}
     </div>
   );

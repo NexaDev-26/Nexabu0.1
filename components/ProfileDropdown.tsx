@@ -16,7 +16,7 @@ const getInitials = (name?: string): string => {
 
 export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ user, onManageAccount, onLogout }) => {
   return (
-    <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl animate-fade-in z-50">
+    <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl animate-fade-in z-[300] modal-content">
       <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center text-orange-600 dark:text-orange-400 font-bold overflow-hidden flex-shrink-0">
           {user?.photoURL && user.photoURL.trim() !== '' ? (
@@ -25,7 +25,36 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ user, onManage
               className="w-full h-full object-cover rounded-full" 
               alt={user?.name || 'Profile'}
               onError={(e) => {
-                // Hide image and show initials if image fails to load
+                // Hide image and try fallback to storeLogo, then initials
+                e.currentTarget.style.display = 'none';
+                const parent = e.currentTarget.parentElement;
+                if (user?.storeLogo) {
+                  const img = document.createElement('img');
+                  img.src = user.storeLogo;
+                  img.className = 'w-full h-full object-cover rounded-full';
+                  img.alt = user?.storeName || 'Store';
+                  img.onerror = () => {
+                    img.remove();
+                    if (parent && !parent.querySelector('span')) {
+                      const span = document.createElement('span');
+                      span.textContent = getInitials(user?.name);
+                      parent.appendChild(span);
+                    }
+                  };
+                  parent?.appendChild(img);
+                } else if (parent && !parent.querySelector('span')) {
+                  const span = document.createElement('span');
+                  span.textContent = getInitials(user?.name);
+                  parent.appendChild(span);
+                }
+              }}
+            />
+          ) : user?.storeLogo ? (
+            <img 
+              src={user.storeLogo} 
+              className="w-full h-full object-cover rounded-full" 
+              alt={user?.storeName || 'Store'}
+              onError={(e) => {
                 e.currentTarget.style.display = 'none';
                 const parent = e.currentTarget.parentElement;
                 if (parent && !parent.querySelector('span')) {

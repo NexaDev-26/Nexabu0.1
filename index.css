@@ -20,6 +20,13 @@ body {
 
 /* Ensure popup overlays/modals sit above other UI so close buttons remain visible */
 .fixed.inset-0 {
-  z-index: 9999 !important;
+  /* Very high to ensure it sits above any headers/toolbars */
+  z-index: 2147483000 !important;
+}
+
+/* Constrain modal bodies to viewport */
+.modal-content {
+  max-height: 90vh;
+  overflow: auto;
 }
 

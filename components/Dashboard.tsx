@@ -114,7 +114,7 @@ export const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
+    <div className="space-y-6 animate-fade-in pb-10 px-4 sm:px-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">Dashboard</h2>
@@ -140,7 +140,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Primary Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Total Income" value={`TZS ${stats.totalIncome.toLocaleString()}`} icon={<DollarSign className="w-6 h-6" />} color="bg-green-600" />
         <StatCard title="Total Expenses" value={`TZS ${stats.totalExpenses.toLocaleString()}`} icon={<TrendingUp className="w-6 h-6" />} color="bg-red-500" />
         <StatCard title="Total Profits" value={`TZS ${stats.totalProfit.toLocaleString()}`} icon={<DollarSign className="w-6 h-6" />} color="bg-blue-600" />
@@ -150,7 +150,7 @@ export const Dashboard: React.FC = () => {
       {/* Analytics Chart */}
       <div className="bg-white dark:bg-neutral-900 p-6 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm">
           <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-neutral-900 dark:text-white"><PieChart className="w-5 h-5 text-orange-600"/> Profit & Loss Trend</h3>
-          <div className="h-[300px] w-full min-h-[300px]">
+          <div className="h-[300px] w-full min-h-[300px] min-w-0">
             <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={stats.chartData}>
                     <defs>

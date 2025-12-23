@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Product, InventoryAdjustment, ItemGroup, ItemCategory, ItemUnit, UnitConversion, User } from '../types';
 import { Plus, Search, AlertTriangle, Filter, Save, X, Trash2, Edit2, Layers, Grid, Scale, RefreshCw, ChevronDown, Check, ArrowRightLeft, ScanBarcode, Camera, CameraOff, Upload, Store } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
-import { db, isFirebaseEnabled } from '../firebaseConfig';
+import { db, isFirebaseEnabled, storage } from '../firebaseConfig';
 import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy, getDocs, getDoc } from 'firebase/firestore';
 import { BulkImportModal } from './BulkImportModal';
 
@@ -36,6 +36,7 @@ export const Inventory: React.FC = () => {
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Load store names for products
   useEffect(() => {
@@ -175,6 +176,7 @@ export const Inventory: React.FC = () => {
           status: editingItem.status || 'Active',
           stock: Number(editingItem.stock) || 0,
           price: Number(editingItem.price) || 0,
+          discountPrice: editingItem.discountPrice ? Number(editingItem.discountPrice) : undefined,
           buyingPrice: Number(editingItem.buyingPrice) || 0,
           trackInventory: editingItem.trackInventory ?? true,
           category: categoryName,
@@ -316,8 +318,9 @@ export const Inventory: React.FC = () => {
                               <th className="p-4">Barcode</th>
                               <th className="p-4">Category</th>
                               <th className="p-4">Unit</th>
-                              <th className="p-4 text-right">Cost</th>
+                              <th className="p-4 text-right">Cost (Buying)</th>
                               <th className="p-4 text-right">Selling Price</th>
+                              <th className="p-4 text-right">Discount Price</th>
                               <th className="p-4 text-center">Stock</th>
                               <th className="p-4">Status</th>
                               <th className="p-4 text-right">Actions</th>
@@ -343,7 +346,19 @@ export const Inventory: React.FC = () => {
                                       {item.unit || '-'}
                                   </td>
                                   <td className="p-4 text-right">{item.buyingPrice?.toLocaleString() || 0}</td>
-                                  <td className="p-4 text-right font-bold">{item.price.toLocaleString()}</td>
+                                  <td className="p-4 text-right font-bold">
+                                    {item.discountPrice ? `TZS ${item.price.toLocaleString()}` : `TZS ${item.price.toLocaleString()}`}
+                                  </td>
+                                  <td className="p-4 text-right">
+                                    {item.discountPrice ? (
+                                      <div className="flex flex-col items-end">
+                                        <span className="text-xs line-through text-neutral-400">TZS {item.price.toLocaleString()}</span>
+                                        <span className="text-orange-600 font-bold">TZS {item.discountPrice.toLocaleString()}</span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-neutral-500 dark:text-neutral-400">—</span>
+                                    )}
+                                  </td>
                                   <td className="p-4 text-center">
                                       <span className={`px-2 py-1 rounded text-xs font-bold ${item.stock < 10 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>{item.stock}</span>
                                   </td>
@@ -402,24 +417,49 @@ export const Inventory: React.FC = () => {
 
       {/* ADD ITEM MODAL */}
       {isModalOpen && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center p-4 pt-24 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000]">
+              <div className="bg-white dark:bg-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] border border-neutral-200 dark:border-neutral-800 overflow-hidden modal-content">
                   <div className="p-5 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
                       <h3 className="font-bold text-lg text-neutral-900 dark:text-white">{editingItem.id ? 'Edit Item' : 'Add New Item'}</h3>
                       <button onClick={() => setIsModalOpen(false)}><X className="w-5 h-5 text-neutral-400"/></button>
                   </div>
                   <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
-                      <div className="flex gap-4">
+                      <div className="flex flex-col sm:flex-row gap-4">
                           <div onClick={() => fileInputRef.current?.click()} className="w-24 h-24 bg-neutral-100 dark:bg-neutral-800 rounded-lg flex items-center justify-center cursor-pointer border-2 border-dashed border-neutral-300 dark:border-neutral-700 hover:border-orange-500">
-                              {editingItem.image ? <img src={editingItem.image} className="w-full h-full object-cover rounded-lg" /> : <div className="text-center"><div className="text-xs text-neutral-500">Upload</div></div>}
-                              <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => {
+                              {editingItem.image ? <img src={editingItem.image} className="w-full h-full object-cover rounded-lg" /> : <div className="text-center"><div className="text-xs text-neutral-500">{isUploadingImage ? 'Uploading...' : 'Upload'}</div></div>}
+                              <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                onChange={async (e) => {
                                   const file = e.target.files?.[0];
-                                  if(file) {
-                                      const reader = new FileReader();
-                                      reader.onloadend = () => setEditingItem({...editingItem, image: reader.result as string});
-                                      reader.readAsDataURL(file);
+                                  if (!file) return;
+                                  if (!file.type.startsWith('image/')) {
+                                    showNotification('Please select an image file.', 'error');
+                                    return;
                                   }
-                              }} />
+                                  try {
+                                    setIsUploadingImage(true);
+                                    if (!storage || !user?.uid) {
+                                      showNotification('Storage not available.', 'error');
+                                      setIsUploadingImage(false);
+                                      return;
+                                    }
+                                    const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+                                    const path = `Items/${user.employerId || user.uid}/${Date.now()}_${file.name}`;
+                                    const storageRef = ref(storage, path);
+                                    await uploadBytes(storageRef, file);
+                                    const url = await getDownloadURL(storageRef);
+                                    setEditingItem({ ...editingItem, image: url });
+                                    showNotification('Item image uploaded.', 'success');
+                                  } catch (err) {
+                                    console.error('Item image upload error:', err);
+                                    showNotification('Failed to upload item image.', 'error');
+                                  } finally {
+                                    setIsUploadingImage(false);
+                                  }
+                                }}
+                              />
                           </div>
                           <div className="flex-1 space-y-3">
                               <input type="text" placeholder="Item Name *" value={editingItem.name || ''} onChange={e => setEditingItem({...editingItem, name: e.target.value})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
@@ -427,7 +467,7 @@ export const Inventory: React.FC = () => {
                           </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                            <div>
                                <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Group</label>
                                <select value={editingItem.groupId || ''} onChange={e => setEditingItem({...editingItem, groupId: e.target.value})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white">
@@ -446,6 +486,11 @@ export const Inventory: React.FC = () => {
                                <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Selling Price *</label>
                                <input type="number" value={editingItem.price || ''} onChange={e => setEditingItem({...editingItem, price: Number(e.target.value)})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
                            </div>
+                          <div>
+                              <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Discount Price</label>
+                              <input type="number" value={editingItem.discountPrice || ''} onChange={e => setEditingItem({...editingItem, discountPrice: Number(e.target.value) || undefined})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
+                              <p className="text-[11px] text-neutral-500 mt-1">If set, the selling price will be shown struck-through and this value will be the final price.</p>
+                          </div>
                            <div>
                                <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Buying Price</label>
                                <input type="number" value={editingItem.buyingPrice || ''} onChange={e => setEditingItem({...editingItem, buyingPrice: Number(e.target.value)})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
@@ -503,8 +548,8 @@ export const Inventory: React.FC = () => {
 
       {/* ADJUSTMENT MODAL */}
       {isAdjustmentModalOpen && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-neutral-900 w-full max-w-md rounded-2xl shadow-xl p-6 border border-neutral-200 dark:border-neutral-800 max-h-[90vh] overflow-auto">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center p-4 pt-24 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000]">
+              <div className="bg-white dark:bg-neutral-900 w-full max-w-md rounded-2xl shadow-xl p-6 border border-neutral-200 dark:border-neutral-800 max-h-[90vh] overflow-auto modal-content">
                   <h3 className="font-bold text-lg mb-4 text-neutral-900 dark:text-white">Inventory Adjustment</h3>
                   <div className="space-y-4">
                       <select value={adjustmentForm.itemId || ''} onChange={e => setAdjustmentForm({...adjustmentForm, itemId: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white">
@@ -529,8 +574,8 @@ export const Inventory: React.FC = () => {
 
       {/* GENERIC MODAL (Group/Cat/Unit) */}
       {isGenericModalOpen && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-neutral-900 w-full max-w-sm rounded-2xl shadow-xl p-6 border border-neutral-200 dark:border-neutral-800 max-h-[90vh] overflow-auto">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center p-4 pt-24 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000]">
+              <div className="bg-white dark:bg-neutral-900 w-full max-w-sm rounded-2xl shadow-xl p-6 border border-neutral-200 dark:border-neutral-800 max-h-[90vh] overflow-auto modal-content">
                   <h3 className="font-bold text-lg mb-4 capitalize text-neutral-900 dark:text-white">Add/Edit {activeTab.slice(0, -1)}</h3>
                   <div className="space-y-4">
                       <input type="text" placeholder="Name" value={genericForm.name || ''} onChange={e => setGenericForm({...genericForm, name: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
@@ -546,7 +591,7 @@ export const Inventory: React.FC = () => {
 
       {/* SCANNER OVERLAY */}
       {isScannerOpen && (
-          <div className="fixed inset-0 bg-black/80 z-[250] flex flex-col">
+          <div className="fixed inset-0 bg-black/80 z-[2147483000] flex flex-col">
               <div className="flex justify-between items-center p-4 text-white bg-black/50 absolute top-0 w-full z-10">
                   <h3 className="font-bold flex items-center gap-2"><ScanBarcode /> Scanner</h3>
                   <button onClick={() => setIsScannerOpen(false)}><X className="w-6 h-6"/></button>

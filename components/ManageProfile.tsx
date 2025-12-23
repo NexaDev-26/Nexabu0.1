@@ -4,11 +4,12 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Branch } from '../types';
+import { User, Branch, PaymentConfig } from '../types';
 import { 
   Store, MapPin, Save, Upload, User as UserIcon, Lock, Mail, Phone, 
   Globe, Building, AlertCircle, CheckCircle, Eye, EyeOff, Loader2,
-  X, Settings as SettingsIcon, CreditCard, Calendar, Shield
+  X, Settings as SettingsIcon, CreditCard, Calendar, Shield, KeyRound, Bell,
+  Smartphone, Building2, Copy, Check
 } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
 import { db, isFirebaseEnabled, auth, storage } from '../firebaseConfig';
@@ -16,6 +17,7 @@ import { doc, updateDoc, addDoc, deleteDoc, collection, query, where, onSnapshot
 import { updatePassword, updateProfile } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { LocationDropdown } from './LocationDropdown';
+import { UserRole } from '../types';
 
 interface ManageProfileProps {
   isOpen: boolean;
@@ -24,11 +26,14 @@ interface ManageProfileProps {
 
 export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose }) => {
   const { user, setUser, showNotification } = useAppContext();
-  const [activeTab, setActiveTab] = useState<'store' | 'account'>('store');
+  const isAdmin = user?.role === UserRole.ADMIN;
+  const [activeTab, setActiveTab] = useState<'store' | 'account' | '2fa' | 'notifications'>(isAdmin ? 'account' : 'store');
   const [isLoading, setIsLoading] = useState(false);
   
   // Store Details State
   const [storeData, setStoreData] = useState<Partial<User>>({});
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig>({});
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   
   // Account Management State
@@ -54,6 +59,36 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
   const [newBranch, setNewBranch] = useState<Partial<Branch>>({});
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [photoUploadedButNotSaved, setPhotoUploadedButNotSaved] = useState(false);
+
+  // 2FA Settings State
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorMethod, setTwoFactorMethod] = useState<'sms' | 'email' | 'app'>('app');
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+
+  // Notifications Settings State
+  const [notifications, setNotifications] = useState({
+    email: {
+      orderUpdates: true,
+      paymentAlerts: true,
+      inventoryAlerts: true,
+      reportDelivery: true,
+      marketing: false
+    },
+    push: {
+      orderUpdates: true,
+      paymentAlerts: true,
+      inventoryAlerts: true,
+      reportDelivery: false,
+      marketing: false
+    },
+    sms: {
+      orderUpdates: false,
+      paymentAlerts: true,
+      inventoryAlerts: false,
+      reportDelivery: false,
+      marketing: false
+    }
+  });
   
   // Track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -71,8 +106,10 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
     if (isOpen) {
       setIsLoading(false);
       setPhotoUploadedButNotSaved(false);
+      // Set default tab based on role
+      setActiveTab(isAdmin ? 'account' : 'store');
     }
-  }, [isOpen]);
+  }, [isOpen, isAdmin]);
 
   // Safety timeout to prevent infinite loading (10 seconds max)
   useEffect(() => {
@@ -109,8 +146,21 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
         photoURL: user.photoURL || null,
         photoFile: undefined
       });
+      // Load payment config
+      setPaymentConfig(user.paymentConfig || {});
     }
   }, [user]);
+
+  const handleCopyToClipboard = async (text: string, fieldId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldId);
+      showNotification('Copied to clipboard!', 'success');
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      showNotification('Failed to copy', 'error');
+    }
+  };
 
   // Load branches
   useEffect(() => {
@@ -199,7 +249,8 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
       setIsLoading(true);
       try {
         const oldLogoURL = storeData.storeLogo && storeData.storeLogo.startsWith('http') ? storeData.storeLogo : null;
-        const storageURL = await uploadImageToStorage(file, 'users/store-logos');
+        // Store logos under Profiles/ in the nexabu-app bucket
+        const storageURL = await uploadImageToStorage(file, 'Profiles/store-logos');
         
         if (storageURL) {
           // Delete old logo if it exists and is from Storage (don't wait for this)
@@ -207,6 +258,8 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
             deleteImageFromStorage(oldLogoURL).catch(err => console.warn("Failed to delete old logo:", err));
           }
           setStoreData(prev => ({ ...prev, storeLogo: storageURL }));
+          // Optimistically update user context so UI (header/avatar) reflects immediately
+          setUser({ ...(user as User), storeLogo: storageURL });
           showNotification("Store logo uploaded. Click 'Save Store Details' to save.", "success");
         } else {
           showNotification("Failed to upload logo. Please try again.", "error");
@@ -279,6 +332,11 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
         }
       }
       
+      // Include payment config if it exists
+      if (paymentConfig && Object.keys(paymentConfig).length > 0) {
+        updateData.paymentConfig = paymentConfig;
+      }
+      
       // Remove any remaining undefined values
       Object.keys(updateData).forEach(key => {
         if (updateData[key] === undefined) {
@@ -296,6 +354,10 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
       
       await updateDoc(doc(db, "users", user.uid), updateData);
       setUser({ ...user, ...updateData } as User);
+      // Update payment config state to reflect saved values
+      if (updateData.paymentConfig) {
+        setPaymentConfig(updateData.paymentConfig);
+      }
       showNotification("Store details updated successfully!", "success");
     } catch (error: any) {
       console.error("Store update error:", error);
@@ -343,7 +405,8 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
       setIsLoading(true);
       try {
         const oldPhotoURL = accountData.photoURL && accountData.photoURL.startsWith('http') ? accountData.photoURL : null;
-        const storageURL = await uploadImageToStorage(fileForUpload, 'users/profile-photos');
+        // Profile photos under Profiles/ in the nexabu-app bucket
+        const storageURL = await uploadImageToStorage(fileForUpload, 'Profiles/profile-photos');
         
         if (storageURL) {
           // Delete old photo if it exists and is from Storage (don't wait for this)
@@ -351,6 +414,8 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
             deleteImageFromStorage(oldPhotoURL).catch(err => console.warn("Failed to delete old photo:", err));
           }
           setAccountData(prev => ({ ...prev, photoURL: storageURL, photoFile: undefined }));
+          // Optimistically update user context so UI updates immediately
+          setUser({ ...(user as User), photoURL: storageURL });
           setPhotoUploadedButNotSaved(true);
           showNotification("✅ Profile photo uploaded successfully! Don't forget to click 'Save Account Settings' below to save your changes.", "success");
         } else {
@@ -544,8 +609,8 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col modal-content">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-800">
           <div className="flex items-center gap-3">
@@ -567,8 +632,9 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
 
         {/* Tabs */}
         <div className="flex border-b border-neutral-200 dark:border-neutral-800 px-6">
-          <button
-            onClick={() => setActiveTab('store')}
+          {!isAdmin && (
+            <button
+              onClick={() => setActiveTab('store')}
             className={`px-4 py-3 font-medium text-sm transition-colors relative flex items-center gap-2 ${
               activeTab === 'store'
                 ? 'text-orange-600 dark:text-orange-400'
@@ -581,6 +647,7 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600 dark:bg-orange-400" />
             )}
           </button>
+          )}
           <button
             onClick={() => setActiveTab('account')}
             className={`px-4 py-3 font-medium text-sm transition-colors relative flex items-center gap-2 ${
@@ -595,6 +662,38 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600 dark:bg-orange-400" />
             )}
           </button>
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => setActiveTab('2fa')}
+                className={`px-4 py-3 font-medium text-sm transition-colors relative flex items-center gap-2 ${
+                  activeTab === '2fa'
+                    ? 'text-orange-600 dark:text-orange-400'
+                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'
+                }`}
+              >
+                <KeyRound className="w-4 h-4" />
+                2FA Settings
+                {activeTab === '2fa' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600 dark:text-orange-400" />
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('notifications')}
+                className={`px-4 py-3 font-medium text-sm transition-colors relative flex items-center gap-2 ${
+                  activeTab === 'notifications'
+                    ? 'text-orange-600 dark:text-orange-400'
+                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200'
+                }`}
+              >
+                <Bell className="w-4 h-4" />
+                Notifications Settings
+                {activeTab === 'notifications' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600 dark:text-orange-400" />
+                )}
+              </button>
+            </>
+          )}
         </div>
 
         {/* Content */}
@@ -804,6 +903,552 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
                 </div>
               )}
 
+              {/* Payment Methods Configuration */}
+              {(user?.role === UserRole.VENDOR || user?.role === UserRole.PHARMACY) && (
+                <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-6">
+                  <h3 className="font-bold text-lg mb-4 text-neutral-900 dark:text-white flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-orange-600" />
+                    Payment Methods Configuration
+                  </h3>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+                    Configure your payment methods. Customers will see these numbers when they select a payment method at checkout.
+                  </p>
+
+                  <div className="space-y-4">
+                    {/* M-Pesa */}
+                    <div className="bg-white dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <Smartphone className="w-5 h-5 text-green-600" />
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={paymentConfig.mpesa?.enabled || false}
+                              onChange={(e) => setPaymentConfig({
+                                ...paymentConfig,
+                                mpesa: {
+                                  ...paymentConfig.mpesa,
+                                  enabled: e.target.checked,
+                                  merchantNumber: paymentConfig.mpesa?.merchantNumber || '',
+                                  accountName: paymentConfig.mpesa?.accountName || ''
+                                }
+                              })}
+                              className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                            />
+                            <span className="font-medium text-neutral-900 dark:text-white">M-Pesa</span>
+                          </label>
+                        </div>
+                      </div>
+                      {paymentConfig.mpesa?.enabled && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">
+                              Merchant/Pay-in Number *
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="tel"
+                                className="flex-1 p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                                value={paymentConfig.mpesa?.merchantNumber || ''}
+                                onChange={(e) => setPaymentConfig({
+                                  ...paymentConfig,
+                                  mpesa: {
+                                    ...paymentConfig.mpesa!,
+                                    merchantNumber: e.target.value
+                                  }
+                                })}
+                                placeholder="e.g., 255700000000"
+                              />
+                              {paymentConfig.mpesa?.merchantNumber && (
+                                <button
+                                  onClick={() => handleCopyToClipboard(paymentConfig.mpesa!.merchantNumber, 'mpesa-number')}
+                                  className="px-3 py-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                                  title="Copy to clipboard"
+                                >
+                                  {copiedField === 'mpesa-number' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">
+                              Account Name *
+                            </label>
+                            <input
+                              type="text"
+                              className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                              value={paymentConfig.mpesa?.accountName || ''}
+                              onChange={(e) => setPaymentConfig({
+                                ...paymentConfig,
+                                mpesa: {
+                                  ...paymentConfig.mpesa!,
+                                  accountName: e.target.value
+                                }
+                              })}
+                              placeholder="e.g., Your Store Name"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tigo Pesa */}
+                    <div className="bg-white dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <Smartphone className="w-5 h-5 text-blue-600" />
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={paymentConfig.tigoPesa?.enabled || false}
+                              onChange={(e) => setPaymentConfig({
+                                ...paymentConfig,
+                                tigoPesa: {
+                                  ...paymentConfig.tigoPesa,
+                                  enabled: e.target.checked,
+                                  merchantNumber: paymentConfig.tigoPesa?.merchantNumber || '',
+                                  accountName: paymentConfig.tigoPesa?.accountName || ''
+                                }
+                              })}
+                              className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                            />
+                            <span className="font-medium text-neutral-900 dark:text-white">Tigo Pesa</span>
+                          </label>
+                        </div>
+                      </div>
+                      {paymentConfig.tigoPesa?.enabled && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">
+                              Merchant/Pay-in Number *
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="tel"
+                                className="flex-1 p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                                value={paymentConfig.tigoPesa?.merchantNumber || ''}
+                                onChange={(e) => setPaymentConfig({
+                                  ...paymentConfig,
+                                  tigoPesa: {
+                                    ...paymentConfig.tigoPesa!,
+                                    merchantNumber: e.target.value
+                                  }
+                                })}
+                                placeholder="e.g., 255700000000"
+                              />
+                              {paymentConfig.tigoPesa?.merchantNumber && (
+                                <button
+                                  onClick={() => handleCopyToClipboard(paymentConfig.tigoPesa!.merchantNumber, 'tigo-number')}
+                                  className="px-3 py-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                                  title="Copy to clipboard"
+                                >
+                                  {copiedField === 'tigo-number' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">
+                              Account Name *
+                            </label>
+                            <input
+                              type="text"
+                              className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                              value={paymentConfig.tigoPesa?.accountName || ''}
+                              onChange={(e) => setPaymentConfig({
+                                ...paymentConfig,
+                                tigoPesa: {
+                                  ...paymentConfig.tigoPesa!,
+                                  accountName: e.target.value
+                                }
+                              })}
+                              placeholder="e.g., Your Store Name"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Airtel Money */}
+                    <div className="bg-white dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <Smartphone className="w-5 h-5 text-red-600" />
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={paymentConfig.airtelMoney?.enabled || false}
+                              onChange={(e) => setPaymentConfig({
+                                ...paymentConfig,
+                                airtelMoney: {
+                                  ...paymentConfig.airtelMoney,
+                                  enabled: e.target.checked,
+                                  merchantNumber: paymentConfig.airtelMoney?.merchantNumber || '',
+                                  accountName: paymentConfig.airtelMoney?.accountName || ''
+                                }
+                              })}
+                              className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                            />
+                            <span className="font-medium text-neutral-900 dark:text-white">Airtel Money</span>
+                          </label>
+                        </div>
+                      </div>
+                      {paymentConfig.airtelMoney?.enabled && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">
+                              Merchant/Pay-in Number *
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="tel"
+                                className="flex-1 p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                                value={paymentConfig.airtelMoney?.merchantNumber || ''}
+                                onChange={(e) => setPaymentConfig({
+                                  ...paymentConfig,
+                                  airtelMoney: {
+                                    ...paymentConfig.airtelMoney!,
+                                    merchantNumber: e.target.value
+                                  }
+                                })}
+                                placeholder="e.g., 255700000000"
+                              />
+                              {paymentConfig.airtelMoney?.merchantNumber && (
+                                <button
+                                  onClick={() => handleCopyToClipboard(paymentConfig.airtelMoney!.merchantNumber, 'airtel-number')}
+                                  className="px-3 py-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                                  title="Copy to clipboard"
+                                >
+                                  {copiedField === 'airtel-number' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">
+                              Account Name *
+                            </label>
+                            <input
+                              type="text"
+                              className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                              value={paymentConfig.airtelMoney?.accountName || ''}
+                              onChange={(e) => setPaymentConfig({
+                                ...paymentConfig,
+                                airtelMoney: {
+                                  ...paymentConfig.airtelMoney!,
+                                  accountName: e.target.value
+                                }
+                              })}
+                              placeholder="e.g., Your Store Name"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bank Transfer */}
+                    <div className="bg-white dark:bg-neutral-900 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <Building2 className="w-5 h-5 text-indigo-600" />
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={paymentConfig.bankTransfer?.enabled || false}
+                              onChange={(e) => setPaymentConfig({
+                                ...paymentConfig,
+                                bankTransfer: {
+                                  ...paymentConfig.bankTransfer,
+                                  enabled: e.target.checked,
+                                  accountNumber: paymentConfig.bankTransfer?.accountNumber || '',
+                                  accountName: paymentConfig.bankTransfer?.accountName || '',
+                                  bankName: paymentConfig.bankTransfer?.bankName || '',
+                                  branchName: paymentConfig.bankTransfer?.branchName || ''
+                                }
+                              })}
+                              className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                            />
+                            <span className="font-medium text-neutral-900 dark:text-white">Bank Transfer</span>
+                          </label>
+                        </div>
+                      </div>
+                      {paymentConfig.bankTransfer?.enabled && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">
+                              Account Number *
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                className="flex-1 p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                                value={paymentConfig.bankTransfer?.accountNumber || ''}
+                                onChange={(e) => setPaymentConfig({
+                                  ...paymentConfig,
+                                  bankTransfer: {
+                                    ...paymentConfig.bankTransfer!,
+                                    accountNumber: e.target.value
+                                  }
+                                })}
+                                placeholder="e.g., 1234567890"
+                              />
+                              {paymentConfig.bankTransfer?.accountNumber && (
+                                <button
+                                  onClick={() => handleCopyToClipboard(paymentConfig.bankTransfer!.accountNumber, 'bank-number')}
+                                  className="px-3 py-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                                  title="Copy to clipboard"
+                                >
+                                  {copiedField === 'bank-number' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">
+                              Account Name *
+                            </label>
+                            <input
+                              type="text"
+                              className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                              value={paymentConfig.bankTransfer?.accountName || ''}
+                              onChange={(e) => setPaymentConfig({
+                                ...paymentConfig,
+                                bankTransfer: {
+                                  ...paymentConfig.bankTransfer!,
+                                  accountName: e.target.value
+                                }
+                              })}
+                              placeholder="e.g., Your Store Name"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">
+                              Bank Name *
+                            </label>
+                            <input
+                              type="text"
+                              className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                              value={paymentConfig.bankTransfer?.bankName || ''}
+                              onChange={(e) => setPaymentConfig({
+                                ...paymentConfig,
+                                bankTransfer: {
+                                  ...paymentConfig.bankTransfer!,
+                                  bankName: e.target.value
+                                }
+                              })}
+                              placeholder="e.g., CRDB Bank"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">
+                              Branch Name
+                            </label>
+                            <input
+                              type="text"
+                              className="w-full p-2.5 border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                              value={paymentConfig.bankTransfer?.branchName || ''}
+                              onChange={(e) => setPaymentConfig({
+                                ...paymentConfig,
+                                bankTransfer: {
+                                  ...paymentConfig.bankTransfer!,
+                                  branchName: e.target.value
+                                }
+                              })}
+                              placeholder="e.g., City Centre Branch"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Details Summary - Read-only view of configured methods */}
+              {(user?.role === UserRole.VENDOR || user?.role === UserRole.PHARMACY) && (
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-6 border border-green-200 dark:border-green-800">
+                  <h3 className="font-bold text-lg mb-4 text-neutral-900 dark:text-white flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    Configured Payment Methods
+                  </h3>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+                    These are your active payment methods that customers will see at checkout.
+                  </p>
+
+                  <div className="space-y-3">
+                    {/* M-Pesa Summary */}
+                    {paymentConfig.mpesa?.enabled && paymentConfig.mpesa.merchantNumber && (
+                      <div className="bg-white dark:bg-neutral-900 rounded-lg p-4 border border-green-200 dark:border-green-700">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Smartphone className="w-4 h-4 text-green-600" />
+                          <span className="font-semibold text-neutral-900 dark:text-white">M-Pesa</span>
+                          <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs font-medium">
+                            Active
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="text-neutral-500 dark:text-neutral-400">Number:</span>
+                            <code className="ml-2 font-mono font-bold text-neutral-900 dark:text-white">
+                              {paymentConfig.mpesa.merchantNumber}
+                            </code>
+                            <button
+                              onClick={() => handleCopyToClipboard(paymentConfig.mpesa!.merchantNumber, 'mpesa-summary')}
+                              className="ml-2 text-green-600 hover:text-green-700"
+                              title="Copy"
+                            >
+                              {copiedField === 'mpesa-summary' ? <Check className="w-3 h-3 inline" /> : <Copy className="w-3 h-3 inline" />}
+                            </button>
+                          </div>
+                          <div>
+                            <span className="text-neutral-500 dark:text-neutral-400">Account:</span>
+                            <span className="ml-2 font-medium text-neutral-900 dark:text-white">
+                              {paymentConfig.mpesa.accountName}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tigo Pesa Summary */}
+                    {paymentConfig.tigoPesa?.enabled && paymentConfig.tigoPesa.merchantNumber && (
+                      <div className="bg-white dark:bg-neutral-900 rounded-lg p-4 border border-green-200 dark:border-green-700">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Smartphone className="w-4 h-4 text-blue-600" />
+                          <span className="font-semibold text-neutral-900 dark:text-white">Tigo Pesa</span>
+                          <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs font-medium">
+                            Active
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="text-neutral-500 dark:text-neutral-400">Number:</span>
+                            <code className="ml-2 font-mono font-bold text-neutral-900 dark:text-white">
+                              {paymentConfig.tigoPesa.merchantNumber}
+                            </code>
+                            <button
+                              onClick={() => handleCopyToClipboard(paymentConfig.tigoPesa!.merchantNumber, 'tigo-summary')}
+                              className="ml-2 text-green-600 hover:text-green-700"
+                              title="Copy"
+                            >
+                              {copiedField === 'tigo-summary' ? <Check className="w-3 h-3 inline" /> : <Copy className="w-3 h-3 inline" />}
+                            </button>
+                          </div>
+                          <div>
+                            <span className="text-neutral-500 dark:text-neutral-400">Account:</span>
+                            <span className="ml-2 font-medium text-neutral-900 dark:text-white">
+                              {paymentConfig.tigoPesa.accountName}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Airtel Money Summary */}
+                    {paymentConfig.airtelMoney?.enabled && paymentConfig.airtelMoney.merchantNumber && (
+                      <div className="bg-white dark:bg-neutral-900 rounded-lg p-4 border border-green-200 dark:border-green-700">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Smartphone className="w-4 h-4 text-red-600" />
+                          <span className="font-semibold text-neutral-900 dark:text-white">Airtel Money</span>
+                          <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs font-medium">
+                            Active
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="text-neutral-500 dark:text-neutral-400">Number:</span>
+                            <code className="ml-2 font-mono font-bold text-neutral-900 dark:text-white">
+                              {paymentConfig.airtelMoney.merchantNumber}
+                            </code>
+                            <button
+                              onClick={() => handleCopyToClipboard(paymentConfig.airtelMoney!.merchantNumber, 'airtel-summary')}
+                              className="ml-2 text-green-600 hover:text-green-700"
+                              title="Copy"
+                            >
+                              {copiedField === 'airtel-summary' ? <Check className="w-3 h-3 inline" /> : <Copy className="w-3 h-3 inline" />}
+                            </button>
+                          </div>
+                          <div>
+                            <span className="text-neutral-500 dark:text-neutral-400">Account:</span>
+                            <span className="ml-2 font-medium text-neutral-900 dark:text-white">
+                              {paymentConfig.airtelMoney.accountName}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Bank Transfer Summary */}
+                    {paymentConfig.bankTransfer?.enabled && paymentConfig.bankTransfer.accountNumber && (
+                      <div className="bg-white dark:bg-neutral-900 rounded-lg p-4 border border-green-200 dark:border-green-700">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Building2 className="w-4 h-4 text-indigo-600" />
+                          <span className="font-semibold text-neutral-900 dark:text-white">Bank Transfer</span>
+                          <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-xs font-medium">
+                            Active
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <span className="text-neutral-500 dark:text-neutral-400">Account Number:</span>
+                            <code className="ml-2 font-mono font-bold text-neutral-900 dark:text-white">
+                              {paymentConfig.bankTransfer.accountNumber}
+                            </code>
+                            <button
+                              onClick={() => handleCopyToClipboard(paymentConfig.bankTransfer!.accountNumber, 'bank-summary')}
+                              className="ml-2 text-green-600 hover:text-green-700"
+                              title="Copy"
+                            >
+                              {copiedField === 'bank-summary' ? <Check className="w-3 h-3 inline" /> : <Copy className="w-3 h-3 inline" />}
+                            </button>
+                          </div>
+                          <div>
+                            <span className="text-neutral-500 dark:text-neutral-400">Account Name:</span>
+                            <span className="ml-2 font-medium text-neutral-900 dark:text-white">
+                              {paymentConfig.bankTransfer.accountName}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-neutral-500 dark:text-neutral-400">Bank:</span>
+                            <span className="ml-2 font-medium text-neutral-900 dark:text-white">
+                              {paymentConfig.bankTransfer.bankName}
+                            </span>
+                          </div>
+                          {paymentConfig.bankTransfer.branchName && (
+                            <div>
+                              <span className="text-neutral-500 dark:text-neutral-400">Branch:</span>
+                              <span className="ml-2 font-medium text-neutral-900 dark:text-white">
+                                {paymentConfig.bankTransfer.branchName}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* No Payment Methods Configured */}
+                    {(!paymentConfig.mpesa?.enabled || !paymentConfig.mpesa?.merchantNumber) &&
+                     (!paymentConfig.tigoPesa?.enabled || !paymentConfig.tigoPesa?.merchantNumber) &&
+                     (!paymentConfig.airtelMoney?.enabled || !paymentConfig.airtelMoney?.merchantNumber) &&
+                     (!paymentConfig.bankTransfer?.enabled || !paymentConfig.bankTransfer?.accountNumber) && (
+                      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                        <div className="flex items-start gap-3">
+                          <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+                          <div>
+                            <p className="font-medium text-yellow-900 dark:text-yellow-200">
+                              No Payment Methods Configured
+                            </p>
+                            <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                              Enable and configure at least one payment method above, then click "Save Store Details" to make it available to customers.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Save Button */}
               <div className="flex justify-end gap-3">
                 <button
@@ -1003,6 +1648,298 @@ export const ManageProfile: React.FC<ManageProfileProps> = ({ isOpen, onClose })
                   {photoUploadedButNotSaved && (
                     <span className="ml-1 text-xs font-bold">⚠️</span>
                   )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 2FA Settings Tab */}
+          {activeTab === '2fa' && (
+            <div className="space-y-6">
+              <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-6">
+                <h3 className="font-bold text-lg mb-4 text-neutral-900 dark:text-white flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-orange-600" />
+                  Two-Factor Authentication
+                </h3>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
+                  Add an extra layer of security to your account by enabling two-factor authentication.
+                </p>
+
+                {/* 2FA Toggle */}
+                <div className="flex items-center justify-between p-4 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                  <div className="flex items-center gap-3">
+                    <KeyRound className="w-5 h-5 text-orange-600" />
+                    <div>
+                      <p className="font-medium text-neutral-900 dark:text-white">Enable 2FA</p>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                        Protect your account with two-factor authentication
+                      </p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={twoFactorEnabled}
+                      onChange={(e) => setTwoFactorEnabled(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 dark:peer-focus:ring-orange-800 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-orange-600"></div>
+                  </label>
+                </div>
+
+                {twoFactorEnabled && (
+                  <div className="mt-6 space-y-4">
+                    {/* 2FA Method Selection */}
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-2">
+                        Authentication Method
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <button
+                          onClick={() => setTwoFactorMethod('app')}
+                          className={`p-4 rounded-lg border-2 transition-all ${
+                            twoFactorMethod === 'app'
+                              ? 'border-orange-600 bg-orange-50 dark:bg-orange-900/20'
+                              : 'border-neutral-200 dark:border-neutral-700 hover:border-orange-300'
+                          }`}
+                        >
+                          <div className="font-medium text-sm text-neutral-900 dark:text-white mb-1">
+                            Authenticator App
+                          </div>
+                          <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                            Google Authenticator, Authy, etc.
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => setTwoFactorMethod('sms')}
+                          className={`p-4 rounded-lg border-2 transition-all ${
+                            twoFactorMethod === 'sms'
+                              ? 'border-orange-600 bg-orange-50 dark:bg-orange-900/20'
+                              : 'border-neutral-200 dark:border-neutral-700 hover:border-orange-300'
+                          }`}
+                        >
+                          <div className="font-medium text-sm text-neutral-900 dark:text-white mb-1">
+                            SMS
+                          </div>
+                          <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                            Receive codes via text message
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => setTwoFactorMethod('email')}
+                          className={`p-4 rounded-lg border-2 transition-all ${
+                            twoFactorMethod === 'email'
+                              ? 'border-orange-600 bg-orange-50 dark:bg-orange-900/20'
+                              : 'border-neutral-200 dark:border-neutral-700 hover:border-orange-300'
+                          }`}
+                        >
+                          <div className="font-medium text-sm text-neutral-900 dark:text-white mb-1">
+                            Email
+                          </div>
+                          <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                            Receive codes via email
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Backup Codes */}
+                    {backupCodes.length > 0 && (
+                      <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                        <p className="font-medium text-sm text-yellow-900 dark:text-yellow-200 mb-2">
+                          Backup Codes (Save these securely)
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {backupCodes.map((code, idx) => (
+                            <code key={idx} className="text-xs font-mono bg-white dark:bg-neutral-800 p-2 rounded">
+                              {code}
+                            </code>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Save Button */}
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={onClose}
+                  className="px-6 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setIsLoading(true);
+                    try {
+                      // TODO: Implement 2FA save logic
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                      showNotification("2FA settings saved successfully", "success");
+                    } catch (error) {
+                      showNotification("Failed to save 2FA settings", "error");
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                  disabled={isLoading}
+                  className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-500 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <Save className="w-4 h-4" />
+                  Save 2FA Settings
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Notifications Settings Tab */}
+          {activeTab === 'notifications' && (
+            <div className="space-y-6">
+              <div className="bg-neutral-50 dark:bg-neutral-800/50 rounded-lg p-6">
+                <h3 className="font-bold text-lg mb-4 text-neutral-900 dark:text-white flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-orange-600" />
+                  Notification Preferences
+                </h3>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
+                  Choose how you want to receive notifications for different events.
+                </p>
+
+                {/* Email Notifications */}
+                <div className="mb-6">
+                  <h4 className="font-semibold text-sm text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Mail className="w-4 h-4" />
+                    Email Notifications
+                  </h4>
+                  <div className="space-y-3">
+                    {Object.entries(notifications.email).map(([key, value]) => (
+                      <div key={key} className="flex items-center justify-between p-3 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                        <div>
+                          <p className="font-medium text-sm text-neutral-900 dark:text-white capitalize">
+                            {key.replace(/([A-Z])/g, ' $1').trim()}
+                          </p>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                            Receive email notifications for {key.replace(/([A-Z])/g, ' $1').toLowerCase()}
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={value}
+                            onChange={(e) => setNotifications(prev => ({
+                              ...prev,
+                              email: { ...prev.email, [key]: e.target.checked }
+                            }))}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 dark:peer-focus:ring-orange-800 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-orange-600"></div>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Push Notifications */}
+                <div className="mb-6">
+                  <h4 className="font-semibold text-sm text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Bell className="w-4 h-4" />
+                    Push Notifications
+                  </h4>
+                  <div className="space-y-3">
+                    {Object.entries(notifications.push).map(([key, value]) => (
+                      <div key={key} className="flex items-center justify-between p-3 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                        <div>
+                          <p className="font-medium text-sm text-neutral-900 dark:text-white capitalize">
+                            {key.replace(/([A-Z])/g, ' $1').trim()}
+                          </p>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                            Receive push notifications for {key.replace(/([A-Z])/g, ' $1').toLowerCase()}
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={value}
+                            onChange={(e) => setNotifications(prev => ({
+                              ...prev,
+                              push: { ...prev.push, [key]: e.target.checked }
+                            }))}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 dark:peer-focus:ring-orange-800 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-orange-600"></div>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* SMS Notifications */}
+                <div>
+                  <h4 className="font-semibold text-sm text-neutral-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Phone className="w-4 h-4" />
+                    SMS Notifications
+                  </h4>
+                  <div className="space-y-3">
+                    {Object.entries(notifications.sms).map(([key, value]) => (
+                      <div key={key} className="flex items-center justify-between p-3 bg-white dark:bg-neutral-900 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                        <div>
+                          <p className="font-medium text-sm text-neutral-900 dark:text-white capitalize">
+                            {key.replace(/([A-Z])/g, ' $1').trim()}
+                          </p>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                            Receive SMS notifications for {key.replace(/([A-Z])/g, ' $1').toLowerCase()}
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={value}
+                            onChange={(e) => setNotifications(prev => ({
+                              ...prev,
+                              sms: { ...prev.sms, [key]: e.target.checked }
+                            }))}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 dark:peer-focus:ring-orange-800 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-orange-600"></div>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={onClose}
+                  className="px-6 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setIsLoading(true);
+                    try {
+                      // TODO: Implement notifications save logic
+                      if (db && user?.uid) {
+                        await updateDoc(doc(db, 'users', user.uid), {
+                          notificationSettings: notifications
+                        });
+                      }
+                      showNotification("Notification settings saved successfully", "success");
+                    } catch (error) {
+                      showNotification("Failed to save notification settings", "error");
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                  disabled={isLoading}
+                  className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-500 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <Save className="w-4 h-4" />
+                  Save Notification Settings
                 </button>
               </div>
             </div>

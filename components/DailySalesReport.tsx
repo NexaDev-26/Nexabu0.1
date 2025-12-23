@@ -311,7 +311,7 @@ export const DailySalesReport: React.FC = () => {
   const uniqueChannels = useMemo(() => Array.from(new Set(scopedOrders.map(o => o.channel || 'POS'))), [scopedOrders]);
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in px-4 sm:px-6">
       {/* Header */}
       <div className="flex justify-between items-center flex-wrap gap-4 print-hidden">
         <div>
@@ -511,7 +511,7 @@ export const DailySalesReport: React.FC = () => {
           </div>
 
           {/* Additional KPIs */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800">
               <p className="text-xs text-neutral-500 mb-1">Average Order Value</p>
               <p className="text-xl font-bold text-neutral-900 dark:text-white">TZS {stats.avgOrderValue.toLocaleString()}</p>

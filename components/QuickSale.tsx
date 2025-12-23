@@ -39,12 +39,16 @@ export const QuickSale: React.FC<QuickSaleProps> = ({ isOpen, onClose }) => {
     setIsProcessing(true);
 
     const sellerId = user.role === UserRole.VENDOR || user.role === UserRole.PHARMACY ? user.uid : user.employerId;
-    const total = quickCart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+    const subtotal = quickCart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+    const taxRate = 0.18; // 18% VAT
+    const taxAmount = subtotal * taxRate;
+    const total = subtotal + taxAmount;
     const isSalesRep = user.role === UserRole.SALES_REP;
     const commissionRate = getCommissionRate(user);
     const commissionAmount = isSalesRep ? calculateOrderCommission({ total } as Order, user) : 0;
 
-    const orderData: Partial<Order> = {
+    // Construct Order Data (only include defined values - Firestore doesn't allow undefined)
+    const orderData: any = {
       sellerId: sellerId || '',
       customerName: 'Walk-in Customer',
       date: new Date().toISOString(),
@@ -58,10 +62,24 @@ export const QuickSale: React.FC<QuickSaleProps> = ({ isOpen, onClose }) => {
       })),
       createdAt: new Date().toISOString(),
       paymentMethod: 'Cash',
-      salesRepId: isSalesRep ? user.uid : undefined,
-      salesRepName: isSalesRep ? user.name : undefined,
-      commission: commissionAmount > 0 ? commissionAmount : undefined
+      // Tax, Discount, Refund fields
+      tax: taxAmount,
+      discount: 0, // Quick sale typically no discount
+      refund: 0, // Default to 0
+      // Branch and Channel fields
+      channel: 'POS' // Quick sale is always POS/in-store
     };
+
+    // Only add optional fields if they have values
+    if (isSalesRep && user.uid) {
+      orderData.salesRepId = user.uid;
+    }
+    if (isSalesRep && user.name) {
+      orderData.salesRepName = user.name;
+    }
+    if (commissionAmount > 0) {
+      orderData.commission = commissionAmount;
+    }
 
     try {
       const online = isOnline();
@@ -179,8 +197,8 @@ export const QuickSale: React.FC<QuickSaleProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden border border-neutral-200 dark:border-neutral-800">
+    <div className="fixed inset-0 z-[220] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden border border-neutral-200 dark:border-neutral-800 modal-content">
         {/* Header */}
         <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center bg-gradient-to-r from-orange-600 to-orange-500 text-white">
           <div className="flex items-center gap-3">

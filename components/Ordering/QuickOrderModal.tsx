@@ -133,7 +133,8 @@ export const QuickOrderModal: React.FC<QuickOrderModalProps> = ({
     const salesRep = selectedSalesRepId ? salesReps.find(r => r.uid === selectedSalesRepId) : null;
     const commission = salesRep ? calculateOrderCommission({ total: subtotal } as Order, salesRep) : undefined;
 
-    const orderData: Partial<Order> = {
+    // Construct Order Data (only include defined values - Firestore doesn't allow undefined)
+    const orderData: any = {
       sellerId: sellerId || '',
       customerId: customer.id,
       customerName: customer.fullName,
@@ -147,12 +148,22 @@ export const QuickOrderModal: React.FC<QuickOrderModalProps> = ({
         price: i.product.price,
         quantity: i.quantity
       })),
-      createdAt: new Date().toISOString(),
-      deliveryAddress: customer.residentAddress || customer.address || '',
-      salesRepId: salesRep?.uid,
-      salesRepName: salesRep?.name,
-      commission: commission
+      createdAt: new Date().toISOString()
     };
+
+    // Only add optional fields if they have values
+    if (customer.residentAddress || customer.address) {
+      orderData.deliveryAddress = customer.residentAddress || customer.address || '';
+    }
+    if (salesRep?.uid) {
+      orderData.salesRepId = salesRep.uid;
+    }
+    if (salesRep?.name) {
+      orderData.salesRepName = salesRep.name;
+    }
+    if (commission && commission > 0) {
+      orderData.commission = commission;
+    }
 
     try {
       const online = isOnline();

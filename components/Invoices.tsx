@@ -278,7 +278,7 @@ export const Invoices: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in px-4 sm:px-6 pb-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">Invoices</h2>
@@ -341,65 +341,67 @@ export const Invoices: React.FC = () => {
 
       {/* Invoices List */}
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-neutral-50 dark:bg-neutral-800">
-            <tr>
-              <th className="p-4">Invoice #</th>
-              <th className="p-4">Customer</th>
-              <th className="p-4">Issue Date</th>
-              <th className="p-4">Due Date</th>
-              <th className="p-4">Amount</th>
-              <th className="p-4">Status</th>
-              <th className="p-4"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-            {filteredInvoices.map((invoice) => (
-              <tr key={invoice.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-                <td className="p-4 font-mono text-xs text-neutral-900 dark:text-white">{invoice.invoiceNumber}</td>
-                <td className="p-4 text-neutral-900 dark:text-white">{invoice.customerName}</td>
-                <td className="p-4 text-neutral-600 dark:text-neutral-400">{new Date(invoice.issueDate).toLocaleDateString()}</td>
-                <td className="p-4 text-neutral-600 dark:text-neutral-400">{new Date(invoice.dueDate).toLocaleDateString()}</td>
-                <td className="p-4 font-bold text-neutral-900 dark:text-white">TZS {invoice.total.toLocaleString()}</td>
-                <td className="p-4">
-                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(invoice.status)}`}>
-                    {getStatusIcon(invoice.status)}
-                    {invoice.status}
-                  </span>
-                </td>
-                <td className="p-4">
-                  <div className="flex justify-end gap-2">
-                    <button onClick={() => openViewInvoice(invoice)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-blue-500" title="View">
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    {invoice.status !== 'Paid' && invoice.status !== 'Cancelled' && (
-                      <>
-                        <button onClick={() => handleSendInvoice(invoice)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-green-500" title="Send">
-                          <Send className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleMarkAsPaid(invoice)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-purple-500" title="Mark as Paid">
-                          <CheckCircle className="w-4 h-4" />
-                        </button>
-                      </>
-                    )}
-                    <div className="relative group">
-                      <button className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-orange-500 flex items-center gap-1" title="Export">
-                        <Download className="w-4 h-4" />
-                        <ChevronDown className="w-3 h-3" />
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm min-w-[720px]">
+            <thead className="bg-neutral-50 dark:bg-neutral-800">
+              <tr>
+                <th className="p-4">Invoice #</th>
+                <th className="p-4">Customer</th>
+                <th className="p-4">Issue Date</th>
+                <th className="p-4">Due Date</th>
+                <th className="p-4">Amount</th>
+                <th className="p-4">Status</th>
+                <th className="p-4"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              {filteredInvoices.map((invoice) => (
+                <tr key={invoice.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                  <td className="p-4 font-mono text-xs text-neutral-900 dark:text-white break-all">{invoice.invoiceNumber}</td>
+                  <td className="p-4 text-neutral-900 dark:text-white">{invoice.customerName}</td>
+                  <td className="p-4 text-neutral-600 dark:text-neutral-400">{new Date(invoice.issueDate).toLocaleDateString()}</td>
+                  <td className="p-4 text-neutral-600 dark:text-neutral-400">{new Date(invoice.dueDate).toLocaleDateString()}</td>
+                  <td className="p-4 font-bold text-neutral-900 dark:text-white">TZS {invoice.total.toLocaleString()}</td>
+                  <td className="p-4">
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(invoice.status)}`}>
+                      {getStatusIcon(invoice.status)}
+                      {invoice.status}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => openViewInvoice(invoice)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-blue-500" title="View">
+                        <Eye className="w-4 h-4" />
                       </button>
-                      <div className="hidden group-hover:flex flex-col absolute right-0 mt-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md shadow-lg z-10 min-w-[140px]">
-                        <button onClick={() => exportInvoice(invoice, 'pdf')} className="px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">PDF</button>
-                        <button onClick={() => exportInvoice(invoice, 'excel')} className="px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">Excel</button>
-                        <button onClick={() => exportInvoice(invoice, 'csv')} className="px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">CSV</button>
-                        <button onClick={() => exportInvoice(invoice, 'text')} className="px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">Text</button>
+                      {invoice.status !== 'Paid' && invoice.status !== 'Cancelled' && (
+                        <>
+                          <button onClick={() => handleSendInvoice(invoice)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-green-500" title="Send">
+                            <Send className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleMarkAsPaid(invoice)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-purple-500" title="Mark as Paid">
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                      <div className="relative group">
+                        <button className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-orange-500 flex items-center gap-1" title="Export">
+                          <Download className="w-4 h-4" />
+                          <ChevronDown className="w-3 h-3" />
+                        </button>
+                        <div className="hidden group-hover:flex flex-col absolute right-0 mt-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md shadow-lg z-10 min-w-[140px]">
+                          <button onClick={() => exportInvoice(invoice, 'pdf')} className="px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">PDF</button>
+                          <button onClick={() => exportInvoice(invoice, 'excel')} className="px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">Excel</button>
+                          <button onClick={() => exportInvoice(invoice, 'csv')} className="px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">CSV</button>
+                          <button onClick={() => exportInvoice(invoice, 'text')} className="px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">Text</button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {filteredInvoices.length === 0 && (
           <div className="p-12 text-center text-neutral-500">
             <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -410,8 +412,8 @@ export const Invoices: React.FC = () => {
 
       {/* Invoice Modal - Create/Edit */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-3xl shadow-2xl my-8">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl w-full max-w-3xl shadow-2xl my-8 max-h-[90vh] overflow-hidden modal-content">
             <div className="p-6 border-b border-neutral-100 dark:border-neutral-800 flex justify-between items-center sticky top-0 bg-white dark:bg-neutral-900 z-10">
               <h3 className="font-bold text-lg text-neutral-900 dark:text-white">
                 {invoiceForm.id ? 'Edit Invoice' : 'Create Invoice'}

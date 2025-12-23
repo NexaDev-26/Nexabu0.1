@@ -73,6 +73,37 @@ export interface User {
   whatsappNumber?: string;
   permissions?: StaffPermissions; // Permissions for staff members
   commissionRate?: number; // Commission percentage for sales reps (0-100)
+  subscriptionPlan?: string; // Package name (e.g., 'Starter', 'Premium', 'Enterprise')
+  subscriptionExpiry?: string; // ISO date string
+  activationDate?: string; // ISO date string
+  supportForumCode?: string; // Support forum access code
+  paymentConfig?: PaymentConfig; // Vendor-specific payment methods configuration
+}
+
+// Vendor Payment Configuration
+export interface PaymentConfig {
+  mpesa?: {
+    enabled: boolean;
+    merchantNumber: string;
+    accountName: string;
+  };
+  tigoPesa?: {
+    enabled: boolean;
+    merchantNumber: string;
+    accountName: string;
+  };
+  airtelMoney?: {
+    enabled: boolean;
+    merchantNumber: string;
+    accountName: string;
+  };
+  bankTransfer?: {
+    enabled: boolean;
+    accountNumber: string;
+    accountName: string;
+    bankName: string;
+    branchName?: string;
+  };
 }
 
 // Product Interface
@@ -80,12 +111,13 @@ export interface Product {
   id: string;
   uid: string;
   name: string;
-  price: number;
+  price: number; // Selling price (vendor -> customer)
+  discountPrice?: number; // Final price after discount
   stock: number;
   image?: string;
   category?: string;
   barcode?: string;
-  buyingPrice?: number;
+  buyingPrice?: number; // Cost (supplier -> vendor)
   description?: string;
   expiryDate?: string;
   isPrescriptionRequired?: boolean;
@@ -115,6 +147,25 @@ export interface Customer {
   photo?: string;
 }
 
+// Order Status Types
+export type OrderStatus = 
+  | 'Pending' 
+  | 'Processing' 
+  | 'Paid' 
+  | 'DISPATCHED' 
+  | 'In Transit' 
+  | 'Delivered' 
+  | 'Cancelled' 
+  | 'PAYMENT_FAILED';
+
+export type PaymentStatus = 
+  | 'PENDING' 
+  | 'PENDING_VERIFICATION' 
+  | 'PAID' 
+  | 'FAILED' 
+  | 'REFUNDED' 
+  | 'ESCROW_HELD';
+
 // Order Interface
 export interface Order {
   id: string;
@@ -122,7 +173,7 @@ export interface Order {
   customerId?: string;
   customerName: string;
   date: string;
-  status: string;
+  status: OrderStatus;
   total: number;
   items: Array<{
     name: string;
@@ -133,15 +184,25 @@ export interface Order {
   createdAt?: string;
   deliveryAddress?: string;
   paymentMethod?: string;
+  paymentStatus?: PaymentStatus; // Payment verification status
+  transactionRef?: string; // Transaction reference code from customer
+  deliveryOtp?: string; // 4-digit OTP for delivery verification
+  courierId?: string; // Assigned courier/driver ID
+  courierName?: string; // Assigned courier/driver name
   salesRepId?: string; // Sales representative who made the sale
   salesRepName?: string;
   commission?: number; // Commission amount for this order
   branchId?: string; // Outlet/branch identifier
   channel?: string; // POS / Online / Field
   tax?: number;
+  deliveryRequested?: boolean; // Whether customer requested home delivery
+  deliveryFee?: number; // Delivery fee amount
+  deliveryType?: 'self-pickup' | 'home-delivery'; // Delivery type selected by customer
   discount?: number;
   refund?: number;
   voided?: boolean;
+  escrowReleaseDate?: string; // When funds were released from escrow
+  paymentRejectionReason?: string; // Reason if payment was rejected
 }
 
 // Branch Interface
@@ -161,6 +222,111 @@ export interface PaymentMethods {
   tigopesa: string;
   airtel: string;
   halopesa: string;
+}
+
+// Payment Provider Types
+export type PaymentProvider = 
+  | 'MPESA' 
+  | 'TIGO_PESA' 
+  | 'AIRTEL_MONEY' 
+  | 'HALO_PESA'
+  | 'BANK_TRANSFER'
+  | 'ESCROW_WALLET'
+  | 'NHIF'
+  | 'PRIVATE_INSURANCE'
+  | 'CASH'
+  | 'CREDIT_CARD';
+
+// Transaction Status
+export type TransactionStatus = 
+  | 'PENDING' 
+  | 'PROCESSING' 
+  | 'COMPLETED' 
+  | 'FAILED' 
+  | 'ESCROW_HELD' 
+  | 'RELEASED' 
+  | 'REFUNDED';
+
+// Transaction Interface
+export interface Transaction {
+  id: string;
+  userId: string;
+  vendorId?: string; // Vendor/Pharmacy ID for multi-vendor orders
+  amount: number;
+  currency: string;
+  provider: PaymentProvider;
+  status: TransactionStatus;
+  referenceId?: string;
+  orderId?: string;
+  vendorOrderId?: string; // Sub-order ID for multi-vendor orders
+  paymentMethod?: 'STK_PUSH' | 'MANUAL_MOBILE' | 'MANUAL_BANK'; // Payment method type
+  escrowReleaseDate?: string;
+  commission?: number; // System commission (5%)
+  createdAt: string;
+  completedAt?: string;
+  description?: string;
+  type?: 'Deposit' | 'Withdrawal' | 'Payment' | 'Refund' | 'Commission' | 'Escrow';
+}
+
+// Multi-Vendor Order Structure
+export interface MultiVendorOrder {
+  id: string;
+  customerId?: string;
+  customerName: string;
+  date: string;
+  status: OrderStatus;
+  total: number; // Total across all vendors
+  vendorOrders: VendorOrder[]; // Sub-orders grouped by vendor
+  createdAt: string;
+  deliveryAddress?: string;
+  deliveryType?: 'self-pickup' | 'home-delivery';
+  deliveryFee?: number;
+  deliveryRequested?: boolean;
+  deliveryOtp?: string;
+  tax?: number;
+  discount?: number;
+  refund?: number;
+  channel?: string;
+  branchId?: string;
+  mainOrderId?: string; // Reference to main order if this is a sub-order
+}
+
+// Individual Vendor Order (Sub-order)
+export interface VendorOrder {
+  id: string;
+  vendorId: string; // Vendor/Pharmacy ID
+  vendorName: string;
+  customerId?: string;
+  customerName: string;
+  date: string;
+  status: OrderStatus;
+  paymentStatus?: PaymentStatus;
+  total: number;
+  items: Array<{
+    name: string;
+    price: number;
+    quantity: number;
+    productId?: string;
+  }>;
+  transactionRef?: string; // Transaction reference code for this vendor
+  paymentMethod?: PaymentProvider;
+  paymentMethodType?: 'STK_PUSH' | 'MANUAL_MOBILE' | 'MANUAL_BANK';
+  createdAt: string;
+  deliveryAddress?: string;
+  tax?: number;
+  discount?: number;
+  refund?: number;
+  mainOrderId?: string; // Reference to main multi-vendor order
+}
+
+// Payment Feature Gating
+export interface PaymentFeatures {
+  mobileMoney: boolean; // M-Pesa, Tigo, Airtel
+  bankSettlement: boolean; // Bank transfers & auto-payouts
+  escrowSecurity: boolean; // Nexa-Shield Escrow
+  insurance: boolean; // NHIF & Private Insurance
+  payoutSpeed: '48_HOURS' | '24_HOURS' | 'INSTANT';
+  reporting: 'BASIC' | 'PDF_RECEIPTS' | 'ADVANCED_AUDIT';
 }
 
 // Invoice Interface
@@ -279,4 +445,39 @@ export interface TwoFactorAuth {
   emailAddress?: string;
   verified: boolean;
   secret?: string; // For TOTP (if implemented later)
+}
+
+// Subscription Package Types
+export interface Service {
+  id: string;
+  name: string;
+  description: string;
+  isEnabled: boolean;
+}
+
+export interface SubscriptionPackage {
+  id: string;
+  name: string;
+  price: number;
+  period: 'Monthly' | 'Yearly';
+  services: Service[];
+  color?: string;
+  isPopular?: boolean;
+}
+
+// Payment Confirmation Interface
+export interface PaymentConfirmation {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  packageId: string;
+  packageName: string;
+  paymentCode: string;
+  amount: number;
+  paymentMethod: string;
+  status: 'pending' | 'confirmed' | 'rejected';
+  confirmedBy?: string; // Admin UID
+  confirmedAt?: string;
+  createdAt: string;
 }

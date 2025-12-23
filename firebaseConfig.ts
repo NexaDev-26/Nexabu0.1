@@ -21,7 +21,8 @@ const firebaseConfig = {
   apiKey: getEnv("REACT_APP_FIREBASE_API_KEY", "AIzaSyDYLRnwim28hjrKxysCNnWJrtPplrZzn40"),
   authDomain: getEnv("REACT_APP_FIREBASE_AUTH_DOMAIN", "nexabu-app.firebaseapp.com"),
   projectId: getEnv("REACT_APP_FIREBASE_PROJECT_ID", "nexabu-app"),
-  storageBucket: getEnv("REACT_APP_FIREBASE_STORAGE_BUCKET", "nexabu-app.appspot.com"),
+  // Use the new custom Storage bucket
+  storageBucket: getEnv("REACT_APP_FIREBASE_STORAGE_BUCKET", "nexabu-app.firebasestorage.app"),
   messagingSenderId: getEnv("REACT_APP_FIREBASE_MESSAGING_SENDER_ID", "1086759047254"),
   appId: getEnv("REACT_APP_FIREBASE_APP_ID", "1:1086759047254:web:1c58c6df62911b26a62bf7"),
   measurementId: getEnv("REACT_APP_FIREBASE_MEASUREMENT_ID", "G-6S0KP0DBC2")
