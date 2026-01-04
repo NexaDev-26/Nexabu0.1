@@ -64,6 +64,7 @@ export interface User {
   createdAt: string;
   status?: string;
   employerId?: string; // For staff/manager/seller/pharmacist
+  employerRole?: UserRole; // Employer's role (e.g., PHARMACY) for staff to inherit view logic
   storeLogo?: string;
   businessType?: string;
   storeAddress?: string;

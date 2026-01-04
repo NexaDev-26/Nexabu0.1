@@ -101,7 +101,7 @@ export const App: React.FC = () => {
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isCustomerProfileSettingsOpen, setIsCustomerProfileSettingsOpen] = useState(false);
   const [isManageProfileOpen, setIsManageProfileOpen] = useState(false);
-  const [adminPaymentDetails, setAdminPaymentDetails] = useState({ phone: '0700000000', name: 'NexaNova Admin', network: 'M-PESA' });
+  const [adminPaymentDetails, setAdminPaymentDetails] = useState({ phone: '0700000000', name: 'Nexabu Admin', network: 'M-PESA' });
 
   useEffect(() => {
     if (darkMode) {
@@ -197,6 +197,8 @@ export const App: React.FC = () => {
       if (view === 'storefront') {
         safeSubscribe(query(collection(db, "products")), (s) => setProducts(s.docs.map(d => ({ ...d.data(), id: d.id } as Product))));
         safeSubscribe(query(collection(db, "users"), where("role", "in", ["VENDOR", "PHARMACY"])), (s) => setAllUsers(s.docs.map(d => d.data() as User)));
+        // Load all branches for vendors/pharmacies
+        safeSubscribe(query(collection(db, "branches")), (s) => setBranches(s.docs.map(d => ({ ...d.data(), id: d.id } as any))));
       } else if (targetUid) {
         safeSubscribe(query(collection(db, "products"), where("uid", "==", targetUid)), (s) => setProducts(s.docs.map(d => ({ ...d.data(), id: d.id } as Product))));
         safeSubscribe(query(collection(db, "orders"), where("sellerId", "==", targetUid)), (s) => setOrders(s.docs.map(d => ({ ...d.data(), id: d.id } as any))));
@@ -356,13 +358,13 @@ export const App: React.FC = () => {
         {/* Mobile Sidebar Overlay */}
         {sidebarOpen && (
           <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-20 lg:hidden"
+            className="fixed inset-0 bg-black/60 z-20 lg:hidden"
             onClick={() => setSidebarOpen(false)}
           />
         )}
 
         <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} fixed lg:static z-30 w-64 bg-neutral-950 border-r border-neutral-800 text-white flex flex-col transition-transform duration-300 shadow-2xl lg:shadow-none h-full`}>
-          <div className="p-6 border-b border-neutral-800 flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-8 h-8 bg-orange-600 rounded-lg flex items-center justify-center font-bold text-xl">N</div><h1 className="font-display font-bold text-xl">NexaNova</h1></div><button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-neutral-800 rounded-lg"><X size={20} /></button></div>
+          <div className="p-6 border-b border-neutral-800 flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-8 h-8 bg-orange-600 rounded-lg flex items-center justify-center font-bold text-xl">N</div><h1 className="font-display font-bold text-xl">Nexabu</h1></div><button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-neutral-800 rounded-lg"><X size={20} /></button></div>
           <div className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
             {/* Helper function to check permissions */}
             {(() => {
@@ -499,7 +501,7 @@ export const App: React.FC = () => {
           <header className="bg-white dark:bg-neutral-900 h-16 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between px-6 flex-shrink-0">
             <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 -ml-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg"><Menu size={24} /></button><h2 className="text-lg font-semibold capitalize truncate">{view.replace('-', ' ')}</h2></div>
             <div className="flex items-center gap-4">
-              {role === UserRole.VENDOR || role === UserRole.PHARMACY && <button onClick={() => navigate('subscription')} className="hidden sm:block bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-4 py-2 rounded-lg text-sm font-medium">Upgrade</button>}
+              {(role === UserRole.VENDOR || role === UserRole.PHARMACY) && <button onClick={() => navigate('subscription')} className="hidden sm:block bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-4 py-2 rounded-lg text-sm font-medium">Upgrade</button>}
               {(role === UserRole.CUSTOMER || view === 'storefront') && (
                 <button 
                   className="relative p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors" 

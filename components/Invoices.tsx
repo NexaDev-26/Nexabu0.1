@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Invoice, Customer, Order, UserRole } from '../types';
-import { Plus, Search, FileText, Send, CheckCircle, Clock, XCircle, Eye, X, Download, Mail, MessageCircle, Calendar, DollarSign, ChevronDown } from 'lucide-react';
+import { Plus, Search, FileText, Send, CheckCircle, Clock, XCircle, Eye, X, Download, Mail, MessageCircle, Calendar, DollarSign, ChevronDown, Trash2, Edit2 } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
 import { db, isFirebaseEnabled } from '../firebaseConfig';
-import { collection, addDoc, doc, updateDoc, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { exportToPDF, exportToExcel, exportToCSV, exportToText } from '../utils/exportUtils';
 import { InvoiceTemplateSelector } from './InvoiceTemplateSelector';
 
@@ -179,6 +179,18 @@ export const Invoices: React.FC = () => {
     } catch (e) {
       console.error(e);
       showNotification("Failed to send invoice", "error");
+    }
+  };
+
+  const handleDeleteInvoice = async (id: string) => {
+    if (!confirm("Delete this invoice? This action cannot be undone.")) return;
+    if (!db) return;
+    try {
+      await deleteDoc(doc(db, 'invoices', id));
+      showNotification("Invoice deleted successfully", "success");
+    } catch (e) {
+      console.error(e);
+      showNotification("Failed to delete invoice", "error");
     }
   };
 
@@ -395,6 +407,14 @@ export const Invoices: React.FC = () => {
                           <button onClick={() => exportInvoice(invoice, 'text')} className="px-3 py-2 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">Text</button>
                         </div>
                       </div>
+                      {invoice.status !== 'Paid' && invoice.status !== 'Cancelled' && (
+                        <button onClick={() => openEditInvoice(invoice)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-indigo-500" title="Edit">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button onClick={() => handleDeleteInvoice(invoice.id)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-red-500" title="Delete">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </td>
                 </tr>

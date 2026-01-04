@@ -45,6 +45,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           onAddToCart={onAddToCart}
           showStoreInfo={showStoreInfo}
           vendor={showStoreInfo ? getVendor(product.uid) : undefined}
+          branch={showStoreInfo ? getBranch(product.uid) : undefined}
         />
       ))}
     </div>

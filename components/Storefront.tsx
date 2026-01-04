@@ -22,11 +22,10 @@ import { PaymentModal } from './PaymentModal';
 import { MultiVendorCheckout } from './MultiVendorCheckout';
 import { findProductByBarcode } from '../utils/barcodeUtils';
 import { calculateOrderCommission, formatCommission } from '../utils/commissionUtils';
-import { generateDeliveryOtp } from '../utils/deliveryUtils';
 import { calculateDeliveryFee } from '../utils/deliveryFeeCalculator';
 
 export const Storefront: React.FC = () => {
-  const { products, allUsers, cart, setCart, paymentMethods, showNotification, user, role } = useAppContext();
+  const { products, allUsers, cart, setCart, paymentMethods, showNotification, user, role, branches } = useAppContext();
   const vendors = allUsers.filter(u => u.role === UserRole.VENDOR || u.role === UserRole.PHARMACY);
   
   // Get branches for current user (vendor/pharmacy) - TODO: Load from Firestore
@@ -214,8 +213,18 @@ export const Storefront: React.FC = () => {
   // Enhanced product filtering with search, category, and vendor filters
   const filteredProducts = useMemo(() => {
     let filtered = products.filter(p => {
-      // Vendor filter
-      if (selectedVendorId && p.uid !== selectedVendorId) return false;
+      // If user is a vendor/pharmacy, show only their products (unless they selected another vendor)
+      const targetUid = (role === UserRole.VENDOR || role === UserRole.PHARMACY) ? user?.uid : null;
+      
+      // Vendor filter: If selectedVendorId is set, filter to that vendor
+      // Otherwise, if user is vendor/pharmacy, filter to their products only
+      if (selectedVendorId) {
+        if (p.uid !== selectedVendorId) return false;
+      } else if (targetUid) {
+        // Vendor/pharmacy viewing their own storefront - only show their products
+        if (p.uid !== targetUid) return false;
+      }
+      // If customer or no targetUid, show all products (marketplace view)
       
       // Search filter (name, SKU, barcode)
       if (searchQuery) {
@@ -233,7 +242,7 @@ export const Storefront: React.FC = () => {
     });
     
     return filtered;
-  }, [products, selectedVendorId, searchQuery, selectedCategory]);
+  }, [products, selectedVendorId, searchQuery, selectedCategory, role, user?.uid]);
 
   // Calculate subtotal using discount price if available
   const subtotal = cart.reduce((sum, item) => {
@@ -674,6 +683,7 @@ export const Storefront: React.FC = () => {
                 showStock={true}
                 showStoreInfo={viewMode === 'products'}
                 vendors={vendors}
+                branches={branches}
               />
             )}
 
@@ -705,6 +715,7 @@ export const Storefront: React.FC = () => {
                 cartItems={cart}
                 showStoreInfo={true}
                 vendors={vendors}
+                branches={branches}
               />
             )}
 
@@ -825,7 +836,7 @@ export const Storefront: React.FC = () => {
 
       {/* Checkout Modal */}
       {isCheckoutOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-neutral-200 dark:border-neutral-800 flex flex-col max-h-[90vh]">
             <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
               <h3 className="font-bold text-lg text-neutral-900 dark:text-white">Confirm Order</h3>

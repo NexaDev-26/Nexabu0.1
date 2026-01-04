@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Trash2, Edit2, Loader2, AlertTriangle, Save, X, CreditCard, CheckCircle, Package, Calendar } from 'lucide-react';
-import { User, UserRole, PaymentConfirmation, SubscriptionPackage } from '../types';
+import { User, UserRole, PaymentConfirmation, SubscriptionPackage, Branch } from '../types';
 import { useAppContext } from '../hooks/useAppContext';
 import { deleteUserAccount, getUserDataCount } from '../services/userDeletionService';
 import { ErrorHandler } from '../utils/errorHandler';
 import { db, isFirebaseEnabled, auth } from '../firebaseConfig';
-import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, onSnapshot, getDocs, getDoc } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 
 const DEFAULT_PACKAGES: SubscriptionPackage[] = [
@@ -24,6 +24,9 @@ export const AdminUsers: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [paymentConfirmations, setPaymentConfirmations] = useState<PaymentConfirmation[]>([]);
   const [packages, setPackages] = useState<SubscriptionPackage[]>(DEFAULT_PACKAGES);
+  const [storeNames, setStoreNames] = useState<{ [uid: string]: string }>({});
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branchNames, setBranchNames] = useState<{ [branchId: string]: string }>({});
 
   // Form states
   const [userForm, setUserForm] = useState<Partial<User>>({
@@ -54,6 +57,67 @@ export const AdminUsers: React.FC = () => {
       return () => unsub();
     }
   }, []);
+
+  // Load branches
+  useEffect(() => {
+    if (isFirebaseEnabled && db) {
+      const unsub = onSnapshot(
+        collection(db, 'branches'),
+        (snapshot) => {
+          const branchesData = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Branch));
+          setBranches(branchesData);
+          const names: { [branchId: string]: string } = {};
+          branchesData.forEach(branch => {
+            names[branch.id] = branch.name;
+          });
+          setBranchNames(names);
+        },
+        (error) => {
+          if (error.code !== 'permission-denied') {
+            console.error('Branches listener error:', error);
+          }
+        }
+      );
+      return () => unsub();
+    }
+  }, []);
+
+  // Load store names for staff users
+  useEffect(() => {
+    if (isFirebaseEnabled && db && allUsers.length > 0) {
+      const loadStoreNames = async () => {
+        const names: { [uid: string]: string } = {};
+        const employerIds = [...new Set(allUsers.filter(u => u.employerId).map(u => u.employerId!))];
+        
+        for (const employerId of employerIds) {
+          if (!storeNames[employerId]) {
+            try {
+              const userDocRef = doc(db, 'users', employerId);
+              const userDocSnap = await getDoc(userDocRef);
+              
+              if (userDocSnap.exists()) {
+                const userData = userDocSnap.data() as User;
+                names[employerId] = userData.storeName || userData.name || 'Unknown Store';
+              } else {
+                names[employerId] = 'Unknown Store';
+              }
+            } catch (error) {
+              console.error('Error loading store name for employer:', employerId, error);
+              names[employerId] = 'Unknown Store';
+            }
+          } else {
+            names[employerId] = storeNames[employerId];
+          }
+        }
+        
+        if (Object.keys(names).length > 0) {
+          setStoreNames(prev => ({ ...prev, ...names }));
+        }
+      };
+      
+      loadStoreNames();
+    }
+  }, [allUsers.length, isFirebaseEnabled, db, storeNames]);
 
   const handleDelete = async (user: User) => {
     if (!window.confirm(`⚠️ WARNING: This will permanently delete ALL data associated with ${user.name || user.email}.\n\nThis includes:\n- All products\n- All orders\n- All customers\n- All invoices and bills\n- All expenses\n- All inventory data\n- All staff accounts\n\nThis action CANNOT be undone!\n\nAre you sure you want to proceed?`)) {
@@ -313,13 +377,21 @@ export const AdminUsers: React.FC = () => {
                 <th className="p-4">Name</th>
                 <th className="p-4">Email</th>
                 <th className="p-4">Role</th>
+                <th className="p-4">Store</th>
+                <th className="p-4">Branch</th>
                 <th className="p-4">Package</th>
                 <th className="p-4">Status</th>
                 <th className="p-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-              {filteredUsers.map(user => (
+              {filteredUsers.map(user => {
+                const isStaff = [UserRole.STAFF, UserRole.SELLER, UserRole.PHARMACIST, UserRole.MANAGER].includes(user.role);
+                const storeName = isStaff && user.employerId ? storeNames[user.employerId] || 'Loading...' : (user.storeName || '-');
+                const userBranch = branches.find(b => b.managerId === user.uid);
+                const branchName = userBranch ? userBranch.name : '-';
+                
+                return (
                 <tr key={user.uid} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                   <td className="p-4 font-medium text-neutral-900 dark:text-white">{user.name}</td>
                   <td className="p-4 text-neutral-600 dark:text-neutral-400">{user.email}</td>
@@ -327,6 +399,12 @@ export const AdminUsers: React.FC = () => {
                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
                       {user.role}
                     </span>
+                  </td>
+                  <td className="p-4 text-neutral-600 dark:text-neutral-400 text-sm">
+                    {storeName}
+                  </td>
+                  <td className="p-4 text-neutral-600 dark:text-neutral-400 text-sm">
+                    {branchName}
                   </td>
                   <td className="p-4">
                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300">
@@ -366,7 +444,8 @@ export const AdminUsers: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

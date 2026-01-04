@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Product, User } from '../../types';
+import { Product, User, Branch } from '../../types';
 import { Plus, Minus, AlertTriangle, Store, MapPin } from 'lucide-react';
 
 export type ProductCardMode = 'grid' | 'list' | 'catalog';
@@ -19,6 +19,7 @@ interface ProductCardProps {
   showStock?: boolean;
   showStoreInfo?: boolean;
   vendor?: User;
+  branch?: Branch;
   className?: string;
 }
 
@@ -32,6 +33,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   showStock = true,
   showStoreInfo = false,
   vendor,
+  branch,
   className = ''
 }) => {
   const hasDiscount = product.discountPrice !== undefined && product.discountPrice < product.price;
@@ -343,8 +345,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 line-clamp-1">
-                  {vendor.storeName}
+                  {vendor.storeName || vendor.name}
                 </p>
+                {branch && (
+                  <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">
+                    Branch: {branch.name}
+                  </p>
+                )}
                 {vendor.location && (
                   <div className="flex items-center gap-1 text-xs text-neutral-500 mt-0.5">
                     <MapPin className="w-3 h-3 flex-shrink-0" />

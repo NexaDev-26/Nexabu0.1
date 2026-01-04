@@ -3,7 +3,7 @@ import { WholesaleOrder, CreditApplication, WholesaleItem, PurchaseOrder, Suppli
 import { Plus, Search, FileText, CheckCircle, XCircle, Truck, User, Calendar, DollarSign, BrainCircuit, Loader2, Package, Wallet, Upload, Download, Database, ShoppingCart, CreditCard, X } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
 import { db, isFirebaseEnabled } from '../firebaseConfig';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, increment, writeBatch, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, increment, writeBatch } from 'firebase/firestore';
 import { chatWithGemini } from '../services/geminiService';
 
 const MOCK_WHOLESALE_ITEMS: WholesaleItem[] = [
@@ -66,8 +66,17 @@ export const Procurement: React.FC = () => {
 
             // Wholesale Orders
             const unsubWholesaleOrders = onSnapshot(
-                query(collection(db, 'wholesale_orders'), where('uid', '==', targetUid), orderBy('date', 'desc')),
-                (snapshot) => setOrders(snapshot.docs.map(d => ({...d.data(), id: d.id} as WholesaleOrder))),
+                query(collection(db, 'wholesale_orders'), where('uid', '==', targetUid)),
+                (snapshot) => {
+                    const ordersData = snapshot.docs.map(d => ({...d.data(), id: d.id} as WholesaleOrder));
+                    // Sort client-side by date (descending)
+                    ordersData.sort((a, b) => {
+                        const dateA = a.date || a.createdAt || '';
+                        const dateB = b.date || b.createdAt || '';
+                        return dateB.localeCompare(dateA);
+                    });
+                    setOrders(ordersData);
+                },
                 handleError
             );
 

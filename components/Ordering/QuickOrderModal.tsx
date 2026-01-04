@@ -199,7 +199,7 @@ export const QuickOrderModal: React.FC<QuickOrderModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+    <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4 animate-fade-in">
       <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-7xl h-[90vh] overflow-hidden border border-neutral-200 dark:border-neutral-800 flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center bg-neutral-50 dark:bg-neutral-950">

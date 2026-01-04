@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { Product, User } from '../../types';
+import { Product, User, Branch } from '../../types';
 import { ProductCard } from './ProductCard';
 
 interface ProductGridProps {
@@ -14,6 +14,7 @@ interface ProductGridProps {
   showStock?: boolean;
   showStoreInfo?: boolean;
   vendors?: User[];
+  branches?: Branch[];
   className?: string;
 }
 
@@ -25,6 +26,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   showStock = true,
   showStoreInfo = false,
   vendors = [],
+  branches = [],
   className = ''
 }) => {
   const getCartQuantity = (productId: string) => {
@@ -34,6 +36,10 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
 
   const getVendor = (productUid: string) => {
     return vendors.find(v => v.uid === productUid);
+  };
+
+  const getBranch = (productUid: string) => {
+    return branches.find(b => b.uid === productUid);
   };
 
   if (products.length === 0) {
@@ -58,6 +64,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
           showStock={showStock}
           showStoreInfo={showStoreInfo}
           vendor={showStoreInfo ? getVendor(product.uid) : undefined}
+          branch={showStoreInfo ? getBranch(product.uid) : undefined}
         />
       ))}
     </div>

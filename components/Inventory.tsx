@@ -1,11 +1,12 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Product, InventoryAdjustment, ItemGroup, ItemCategory, ItemUnit, UnitConversion, User } from '../types';
 import { Plus, Search, AlertTriangle, Filter, Save, X, Trash2, Edit2, Layers, Grid, Scale, RefreshCw, ChevronDown, Check, ArrowRightLeft, ScanBarcode, Camera, CameraOff, Upload, Store } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
 import { db, isFirebaseEnabled, storage } from '../firebaseConfig';
 import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy, getDocs, getDoc } from 'firebase/firestore';
 import { BulkImportModal } from './BulkImportModal';
+import { useDebounce } from '../hooks/useDebounce';
 
 export const Inventory: React.FC = () => {
   const { user, showNotification } = useAppContext();
@@ -23,6 +24,7 @@ export const Inventory: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   
   // Form State
@@ -158,6 +160,16 @@ export const Inventory: React.FC = () => {
           if (cleanup) cleanup();
       };
   }, [isScannerOpen, items, showNotification]);
+
+  // Filtered items with debounced search
+  const filteredItems = useMemo(() => {
+    if (!debouncedSearchTerm) return items;
+    const term = debouncedSearchTerm.toLowerCase();
+    return items.filter(i => 
+      i.name.toLowerCase().includes(term) || 
+      i.barcode?.toLowerCase().includes(term)
+    );
+  }, [items, debouncedSearchTerm]);
 
   // --- Handlers ---
 
@@ -327,7 +339,7 @@ export const Inventory: React.FC = () => {
                           </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                          {items.filter(i => i.name.toLowerCase().includes(searchTerm.toLowerCase()) || i.barcode?.includes(searchTerm)).map(item => (
+                          {filteredItems.map(item => (
                               <tr key={item.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                                   <td className="p-4 font-medium text-neutral-900 dark:text-white">{item.name}</td>
                                   <td className="p-4">
@@ -417,7 +429,7 @@ export const Inventory: React.FC = () => {
 
       {/* ADD ITEM MODAL */}
       {isModalOpen && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center p-4 pt-24 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000]">
+          <div className="fixed inset-0 bg-black/70  flex items-start justify-center p-4 pt-24 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000]">
               <div className="bg-white dark:bg-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] border border-neutral-200 dark:border-neutral-800 overflow-hidden modal-content">
                   <div className="p-5 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
                       <h3 className="font-bold text-lg text-neutral-900 dark:text-white">{editingItem.id ? 'Edit Item' : 'Add New Item'}</h3>
@@ -548,7 +560,7 @@ export const Inventory: React.FC = () => {
 
       {/* ADJUSTMENT MODAL */}
       {isAdjustmentModalOpen && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center p-4 pt-24 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000]">
+          <div className="fixed inset-0 bg-black/70  flex items-start justify-center p-4 pt-24 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000]">
               <div className="bg-white dark:bg-neutral-900 w-full max-w-md rounded-2xl shadow-xl p-6 border border-neutral-200 dark:border-neutral-800 max-h-[90vh] overflow-auto modal-content">
                   <h3 className="font-bold text-lg mb-4 text-neutral-900 dark:text-white">Inventory Adjustment</h3>
                   <div className="space-y-4">
@@ -574,7 +586,7 @@ export const Inventory: React.FC = () => {
 
       {/* GENERIC MODAL (Group/Cat/Unit) */}
       {isGenericModalOpen && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center p-4 pt-24 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000]">
+          <div className="fixed inset-0 bg-black/70  flex items-start justify-center p-4 pt-24 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000]">
               <div className="bg-white dark:bg-neutral-900 w-full max-w-sm rounded-2xl shadow-xl p-6 border border-neutral-200 dark:border-neutral-800 max-h-[90vh] overflow-auto modal-content">
                   <h3 className="font-bold text-lg mb-4 capitalize text-neutral-900 dark:text-white">Add/Edit {activeTab.slice(0, -1)}</h3>
                   <div className="space-y-4">
@@ -592,7 +604,7 @@ export const Inventory: React.FC = () => {
       {/* SCANNER OVERLAY */}
       {isScannerOpen && (
           <div className="fixed inset-0 bg-black/80 z-[2147483000] flex flex-col">
-              <div className="flex justify-between items-center p-4 text-white bg-black/50 absolute top-0 w-full z-10">
+              <div className="flex justify-between items-center p-4 text-white bg-black/70 absolute top-0 w-full z-10">
                   <h3 className="font-bold flex items-center gap-2"><ScanBarcode /> Scanner</h3>
                   <button onClick={() => setIsScannerOpen(false)}><X className="w-6 h-6"/></button>
               </div>
