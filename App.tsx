@@ -145,7 +145,6 @@ export const App: React.FC = () => {
               };
               
               await setDoc(userRef, userData);
-              console.log("Profile auto-created successfully.");
             }
             
             setRole(userData.role);
