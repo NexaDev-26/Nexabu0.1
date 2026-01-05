@@ -42,6 +42,7 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
   const [isProcessing, setIsProcessing] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [stkPushSent, setStkPushSent] = useState(false);
+  const [paymentMethodType, setPaymentMethodType] = useState<'STK_PUSH' | 'MANUAL_MOBILE' | null>(null);
 
   // Get available payment methods based on tier
   const availableMethods = getAvailablePaymentMethods(userTier);
@@ -76,27 +77,40 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
     return names[provider] || provider;
   };
 
-  const handleProviderSelect = async (provider: PaymentProvider) => {
+  const handleProviderSelect = (provider: PaymentProvider) => {
     setSelectedProvider(provider);
     setShowManualEntry(false);
     setStkPushSent(false);
+    setPaymentMethodType(null);
     
-    // For mobile money, simulate STK Push
-    if (mobileMoneyMethods.includes(provider)) {
+    // For mobile money, show option to choose STK Push or Manual Entry
+    // For other methods, show manual entry immediately
+    if (!mobileMoneyMethods.includes(provider)) {
+      setShowManualEntry(true);
+    }
+  };
+
+  const handleMobilePaymentTypeSelect = async (type: 'STK_PUSH' | 'MANUAL_MOBILE') => {
+    if (!selectedProvider) return;
+    
+    setPaymentMethodType(type);
+    
+    if (type === 'STK_PUSH') {
       setIsProcessing(true);
       try {
         // TODO: Call backend API to initiate STK Push
         await new Promise(resolve => setTimeout(resolve, 1500));
         setStkPushSent(true);
-        showNotification(`STK Push sent to your ${getMethodName(provider)} number`, 'success');
+        showNotification(`STK Push sent to your ${getMethodName(selectedProvider)} number`, 'success');
       } catch (error) {
         showNotification('Failed to send STK Push. Please use manual entry.', 'error');
+        setPaymentMethodType('MANUAL_MOBILE');
         setShowManualEntry(true);
       } finally {
         setIsProcessing(false);
       }
     } else {
-      // For other methods, show manual entry immediately
+      // Manual entry - show input immediately
       setShowManualEntry(true);
     }
   };
@@ -321,7 +335,7 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
           )}
 
           {/* STK Push Instructions */}
-          {selectedProvider && stkPushSent && !showManualEntry && mobileMoneyMethods.includes(selectedProvider) && (
+          {selectedProvider && stkPushSent && !showManualEntry && mobileMoneyMethods.includes(selectedProvider) && paymentMethodType === 'STK_PUSH' && (
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5" />
@@ -339,7 +353,7 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
           )}
 
           {/* Manual Entry */}
-          {(showManualEntry || (selectedProvider && !mobileMoneyMethods.includes(selectedProvider))) && (
+          {(showManualEntry || (selectedProvider && !mobileMoneyMethods.includes(selectedProvider)) || (selectedProvider && mobileMoneyMethods.includes(selectedProvider) && paymentMethodType === 'MANUAL_MOBILE')) && (
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
@@ -364,12 +378,16 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
                 </p>
               </div>
 
-              {selectedProvider && mobileMoneyMethods.includes(selectedProvider) && !stkPushSent && (
+              {selectedProvider && mobileMoneyMethods.includes(selectedProvider) && paymentMethodType === 'STK_PUSH' && stkPushSent && (
                 <button
-                  onClick={handleManualEntry}
+                  onClick={() => {
+                    setPaymentMethodType('MANUAL_MOBILE');
+                    setShowManualEntry(true);
+                    setStkPushSent(false);
+                  }}
                   className="w-full p-3 border border-neutral-200 dark:border-neutral-700 rounded-lg text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                 >
-                  I'll enter the code manually
+                  Switch to Manual Entry
                 </button>
               )}
             </div>
@@ -389,6 +407,7 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
             disabled={
               isProcessing || 
               !selectedProvider || 
+              (mobileMoneyMethods.includes(selectedProvider) && !paymentMethodType) ||
               (mobileMoneyMethods.includes(selectedProvider) && (!transactionRef.trim() || transactionRef.length < 6))
             }
             className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
