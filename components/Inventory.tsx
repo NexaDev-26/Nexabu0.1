@@ -457,16 +457,41 @@ export const Inventory: React.FC = () => {
                                       setIsUploadingImage(false);
                                       return;
                                     }
+                                    
+                                    // Validate file size (5MB limit)
+                                    if (file.size > 5 * 1024 * 1024) {
+                                      showNotification('Image size must be less than 5MB.', 'error');
+                                      setIsUploadingImage(false);
+                                      return;
+                                    }
+                                    
                                     const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-                                    const path = `Items/${user.employerId || user.uid}/${Date.now()}_${file.name}`;
+                                    const targetUid = user.employerId || user.uid;
+                                    const path = `Items/${targetUid}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
                                     const storageRef = ref(storage, path);
-                                    await uploadBytes(storageRef, file);
+                                    
+                                    // Upload with metadata
+                                    await uploadBytes(storageRef, file, {
+                                      contentType: file.type,
+                                      customMetadata: {
+                                        uploadedBy: user.uid,
+                                        uploadedAt: new Date().toISOString()
+                                      }
+                                    });
+                                    
                                     const url = await getDownloadURL(storageRef);
                                     setEditingItem({ ...editingItem, image: url });
-                                    showNotification('Item image uploaded.', 'success');
-                                  } catch (err) {
+                                    showNotification('Item image uploaded successfully.', 'success');
+                                  } catch (err: any) {
                                     console.error('Item image upload error:', err);
-                                    showNotification('Failed to upload item image.', 'error');
+                                    const errorMessage = err?.message || 'Unknown error';
+                                    if (errorMessage.includes('permission') || errorMessage.includes('unauthorized')) {
+                                      showNotification('Permission denied. Please check your storage rules.', 'error');
+                                    } else if (errorMessage.includes('size') || errorMessage.includes('quota')) {
+                                      showNotification('File too large. Maximum size is 5MB.', 'error');
+                                    } else {
+                                      showNotification(`Failed to upload image: ${errorMessage}`, 'error');
+                                    }
                                   } finally {
                                     setIsUploadingImage(false);
                                   }
