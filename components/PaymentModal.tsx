@@ -260,8 +260,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         }
 
         // Create transaction record with PENDING_VERIFICATION status
+        // Use sellerId as uid for transaction (vendor owns the transaction)
+        const transactionUid = orderData?.sellerId || sellerId || user.uid;
         await addDoc(collection(db, 'transactions'), {
-          userId: user.uid,
+          uid: transactionUid, // Required for Firestore permission check - vendor owns the transaction
+          userId: user.uid, // Customer who made the payment
+          vendorId: orderData?.sellerId || sellerId, // Vendor receiving the payment
           orderId: finalOrderId,
           amount,
           currency: 'TZS',
