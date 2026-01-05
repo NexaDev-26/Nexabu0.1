@@ -148,21 +148,69 @@ export async function sendWhatsAppMessage(message: WhatsAppMessage): Promise<boo
 /**
  * Send order confirmation message
  */
-export async function sendOrderConfirmation(order: Order, customer: Customer): Promise<boolean> {
-  if (!customer.phone) {
-    console.warn('Customer phone number not available');
+export async function sendOrderConfirmation(order: Order, customer: Customer, vendorPhone?: string): Promise<boolean> {
+  // Build order items list
+  const itemsList = order.items.map((item, index) => 
+    `${index + 1}. ${item.name} x${item.quantity} - TZS ${(item.price * item.quantity).toLocaleString()}`
+  ).join('\n');
+
+  // Build order message
+  let message = `🛒 *NEW ORDER*\n\n`;
+  message += `*Customer Details:*\n`;
+  message += `Name: ${customer.fullName}\n`;
+  if (customer.phone) {
+    message += `Phone: ${customer.phone}\n`;
+  }
+  if (order.deliveryAddress) {
+    message += `Address: ${order.deliveryAddress}\n`;
+  }
+  message += `\n*Order Details:*\n`;
+  message += `Order ID: #${order.id}\n`;
+  message += `Date: ${new Date(order.date).toLocaleString()}\n`;
+  message += `\n*Items:*\n${itemsList}\n`;
+  
+  if (order.discount && order.discount > 0) {
+    message += `\nDiscount: -TZS ${order.discount.toLocaleString()}\n`;
+  }
+  if (order.tax && order.tax > 0) {
+    message += `Tax: TZS ${order.tax.toLocaleString()}\n`;
+  }
+  if (order.deliveryFee && order.deliveryFee > 0) {
+    message += `Delivery Fee: TZS ${order.deliveryFee.toLocaleString()}\n`;
+  }
+  
+  message += `\n*Total: TZS ${order.total.toLocaleString()}*\n`;
+  
+  // Include payment reference if available
+  if (order.transactionRef) {
+    message += `\n*Payment Reference:* ${order.transactionRef}\n`;
+  }
+  if (order.paymentMethod) {
+    message += `Payment Method: ${order.paymentMethod}\n`;
+  }
+  if (order.paymentStatus) {
+    message += `Payment Status: ${order.paymentStatus}\n`;
+  }
+  
+  if (order.deliveryType) {
+    message += `\nDelivery Type: ${order.deliveryType === 'home-delivery' ? 'Home Delivery' : 'Self Pickup'}\n`;
+  }
+  if (order.deliveryOtp) {
+    message += `Delivery OTP: ${order.deliveryOtp}\n`;
+  }
+  
+  message += `\nStatus: ${order.status}\n`;
+  message += `\nThank you for your business! 🙏`;
+
+  // Send to vendor if phone provided, otherwise send to customer
+  const recipientPhone = vendorPhone || customer.phone;
+  if (!recipientPhone) {
+    console.warn('No phone number available for WhatsApp');
     return false;
   }
 
-  const message = `Hello ${customer.fullName},\n\n` +
-    `Your order #${order.id} has been confirmed!\n\n` +
-    `Order Details:\n` +
-    `Total: TZS ${order.total.toLocaleString()}\n` +
-    `Status: ${order.status}\n\n` +
-    `Thank you for your business!`;
-
   return await sendWhatsAppMessage({
-    to: customer.phone,
+    to: recipientPhone,
     text: message,
     type: 'text'
   });

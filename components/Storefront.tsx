@@ -22,6 +22,7 @@ import { PaymentModal } from './PaymentModal';
 import { MultiVendorCheckout } from './MultiVendorCheckout';
 import { findProductByBarcode } from '../utils/barcodeUtils';
 import { calculateOrderCommission, formatCommission } from '../utils/commissionUtils';
+import { generateDeliveryOtp } from '../utils/deliveryUtils';
 import { calculateDeliveryFee } from '../utils/deliveryFeeCalculator';
 
 export const Storefront: React.FC = () => {
@@ -407,6 +408,76 @@ export const Storefront: React.FC = () => {
       const online = isOnline();
       
       if (online && isFirebaseEnabled && db) {
+        // If ordering via WhatsApp, send WhatsApp message directly
+        if (viaWhatsapp) {
+          // Get vendor phone number
+          const vendor = vendors.find(v => v.uid === sellerId);
+          const vendorPhone = vendor?.phone || '';
+          
+          // Create order message for WhatsApp
+          const itemsList = orderItems.map((item, index) => 
+            `${index + 1}. ${item.name} x${item.quantity} - TZS ${(item.price * item.quantity).toLocaleString()}`
+          ).join('\n');
+          
+          let whatsappMessage = `🛒 *NEW ORDER*\n\n`;
+          whatsappMessage += `*Customer Details:*\n`;
+          whatsappMessage += `Name: ${customerDetails.name}\n`;
+          whatsappMessage += `Phone: ${customerDetails.phone}\n`;
+          if (customerDetails.address) {
+            whatsappMessage += `Address: ${customerDetails.address}\n`;
+          }
+          whatsappMessage += `\n*Order Details:*\n`;
+          whatsappMessage += `Date: ${new Date().toLocaleString()}\n`;
+          whatsappMessage += `\n*Items:*\n${itemsList}\n`;
+          
+          if (discountAmount > 0) {
+            whatsappMessage += `\nDiscount: -TZS ${discountAmount.toLocaleString()}\n`;
+          }
+          if (taxAmount > 0) {
+            whatsappMessage += `Tax: TZS ${taxAmount.toLocaleString()}\n`;
+          }
+          if (deliveryFee > 0) {
+            whatsappMessage += `Delivery Fee: TZS ${deliveryFee.toLocaleString()}\n`;
+          }
+          
+          whatsappMessage += `\n*Total: TZS ${totalAmount.toLocaleString()}*\n`;
+          
+          if (deliveryType) {
+            whatsappMessage += `\nDelivery Type: ${deliveryType === 'home-delivery' ? 'Home Delivery' : 'Self Pickup'}\n`;
+          }
+          if (deliveryOtp) {
+            whatsappMessage += `Delivery OTP: ${deliveryOtp}\n`;
+          }
+          
+          whatsappMessage += `\nThank you for your business! 🙏`;
+          
+          // Open WhatsApp with pre-filled message
+          const whatsappUrl = `https://wa.me/${vendorPhone.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappMessage)}`;
+          window.open(whatsappUrl, '_blank');
+          
+          // Also create order in database for tracking
+          try {
+            const orderRef = await addDoc(collection(db, 'orders'), {
+              ...orderData,
+              channel: 'WhatsApp'
+            });
+            
+            // Clear cart
+            setCart([]);
+            await saveCart([]);
+            setIsCheckoutOpen(false);
+            setIsProcessing(false);
+            
+            showNotification("Order sent via WhatsApp! Order created for tracking.", "success");
+            return;
+          } catch (error: any) {
+            console.error("Error creating WhatsApp order:", error);
+            showNotification("WhatsApp message opened, but failed to save order. Please contact vendor directly.", "warning");
+            setIsProcessing(false);
+            return;
+          }
+        }
+        
         // Don't create order yet - wait for payment confirmation
         // Prepare order data and open payment modal
         // Order will be created when customer confirms payment

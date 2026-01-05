@@ -271,6 +271,36 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           createdAt: new Date().toISOString()
         });
 
+        // Send WhatsApp notification if configured
+        try {
+          const { sendOrderConfirmation } = await import('../services/whatsappService');
+          const { getDocs, query, where, collection } = await import('firebase/firestore');
+          
+          // Get order details
+          const orderDoc = await getDocs(query(collection(db, 'orders'), where('__name__', '==', finalOrderId)));
+          if (!orderDoc.empty) {
+            const orderData = { id: finalOrderId, ...orderDoc.docs[0].data() } as Order;
+            
+            // Get vendor phone
+            const vendorDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', sellerId)));
+            const vendorPhone = vendorDoc.empty ? null : vendorDoc.docs[0].data().phone;
+            
+            // Create customer object
+            const customer = {
+              fullName: orderData.customerName,
+              phone: orderData.customerId ? (await getDocs(query(collection(db, 'users'), where('uid', '==', orderData.customerId)))).docs[0]?.data()?.phone || '' : ''
+            };
+            
+            // Send WhatsApp to vendor
+            if (vendorPhone) {
+              await sendOrderConfirmation(orderData, customer, vendorPhone);
+            }
+          }
+        } catch (whatsappError) {
+          console.warn('WhatsApp notification failed:', whatsappError);
+          // Don't fail the order if WhatsApp fails
+        }
+
         onPaymentSubmitted(transactionRef.toUpperCase());
         showNotification('Order placed! Payment submitted for vendor verification.', 'success');
         onClose();
