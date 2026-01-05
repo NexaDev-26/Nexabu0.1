@@ -3,17 +3,13 @@ import React, { useState } from 'react';
 import { Check, Crown, Zap, ShieldCheck, X, Copy, CheckCircle, Loader2, Mail, ArrowRight, Calendar, Clock, CreditCard, KeyRound, Bell, Smartphone, Building2, Shield, Heart } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
 import { SubscriptionPaymentModal } from './SubscriptionPaymentModal';
-import { PaymentProvider } from '../types';
+import { PaymentProvider, PaymentConfig } from '../types';
 
 interface SubscriptionProps {
-    adminPaymentDetails?: {
-        phone: string;
-        name: string;
-        network: string;
-    };
+    adminPaymentConfig?: PaymentConfig | null;
 }
 
-export const Subscription: React.FC<SubscriptionProps> = ({ adminPaymentDetails }) => {
+export const Subscription: React.FC<SubscriptionProps> = ({ adminPaymentConfig }) => {
   const { user } = useAppContext();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
@@ -170,7 +166,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({ adminPaymentDetails 
           packageName={selectedPlan.name}
           amount={selectedPlan.amount}
           userTier={getUserTier()}
-          adminPaymentDetails={adminPaymentDetails}
+          adminPaymentConfig={adminPaymentConfig}
           onPaymentSubmitted={handlePaymentSubmitted}
         />
       )}

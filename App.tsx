@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { UserRole, User, Product, StaffPermissions } from './types';
+import { UserRole, User, Product, StaffPermissions, PaymentConfig } from './types';
 import { Loader2 } from 'lucide-react';
 
 // Critical components - loaded immediately (auth, landing, small components)
@@ -101,7 +101,7 @@ export const App: React.FC = () => {
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isCustomerProfileSettingsOpen, setIsCustomerProfileSettingsOpen] = useState(false);
   const [isManageProfileOpen, setIsManageProfileOpen] = useState(false);
-  const [adminPaymentDetails, setAdminPaymentDetails] = useState({ phone: '0700000000', name: 'Nexabu Admin', network: 'M-PESA' });
+  const [adminPaymentConfig, setAdminPaymentConfig] = useState<PaymentConfig | null>(null);
 
   useEffect(() => {
     if (darkMode) {
@@ -270,7 +270,7 @@ export const App: React.FC = () => {
       case 'packages': 
         return (
           <Suspense fallback={<LoadingFallback />}>
-            <AdminPackages adminPaymentDetails={adminPaymentDetails} setAdminPaymentDetails={setAdminPaymentDetails} />
+            <AdminPackages adminPaymentConfig={adminPaymentConfig} setAdminPaymentConfig={setAdminPaymentConfig} />
           </Suspense>
         );
       case 'payment-verification':
@@ -288,7 +288,7 @@ export const App: React.FC = () => {
       case 'subscription': 
         return (
           <Suspense fallback={<LoadingFallback />}>
-            <Subscription adminPaymentDetails={adminPaymentDetails} />
+            <Subscription adminPaymentConfig={adminPaymentConfig} />
           </Suspense>
         );
       case 'staff': return <Suspense fallback={<LoadingFallback />}><StaffManagement /></Suspense>;

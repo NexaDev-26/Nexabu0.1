@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { CreditCard, Smartphone, Building2, Shield, Heart, Loader2, X, AlertCircle, CheckCircle } from 'lucide-react';
-import { PaymentProvider } from '../types';
+import { PaymentProvider, PaymentConfig } from '../types';
 import { useAppContext } from '../hooks/useAppContext';
 import { db, isFirebaseEnabled } from '../firebaseConfig';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
@@ -18,11 +18,7 @@ interface SubscriptionPaymentModalProps {
   packageName: string;
   amount: number;
   userTier: 'Starter' | 'Premium' | 'Enterprise';
-  adminPaymentDetails?: {
-    phone: string;
-    name: string;
-    network: string;
-  };
+  adminPaymentConfig?: PaymentConfig | null;
   onPaymentSubmitted: (transactionRef: string, paymentMethod: PaymentProvider) => void;
 }
 
@@ -33,7 +29,7 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
   packageName,
   amount,
   userTier,
-  adminPaymentDetails,
+  adminPaymentConfig,
   onPaymentSubmitted
 }) => {
   const { user, showNotification } = useAppContext();
