@@ -41,9 +41,15 @@ service firebase.storage {
     // Owner (userId) can upload images to their folder
     // Staff members can also upload (staff relationship verified in app code)
     // Note: The app code uses user.employerId || user.uid, so staff upload to employer's folder
-    match /Items/{userId}/{allPaths=**} {
+    match /Items/{userId}/{fileName} {
       allow read: if isAuthenticated();
       // Allow authenticated users to write - app-level checks ensure only owners/staff can upload
+      allow write: if isAuthenticated() && isValidImage();
+    }
+    
+    // 3b. Item Images with nested paths (if any)
+    match /Items/{allPaths=**} {
+      allow read: if isAuthenticated();
       allow write: if isAuthenticated() && isValidImage();
     }
 

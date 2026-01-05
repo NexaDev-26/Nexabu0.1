@@ -467,17 +467,21 @@ export const Inventory: React.FC = () => {
                                     
                                     const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
                                     const targetUid = user.employerId || user.uid;
-                                    const path = `Items/${targetUid}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+                                    // Sanitize filename and create path
+                                    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+                                    const path = `Items/${targetUid}/${Date.now()}_${sanitizedFileName}`;
                                     const storageRef = ref(storage, path);
                                     
-                                    // Upload with metadata
-                                    await uploadBytes(storageRef, file, {
-                                      contentType: file.type,
+                                    // Upload with metadata - ensure contentType is set
+                                    const metadata = {
+                                      contentType: file.type || 'image/jpeg',
                                       customMetadata: {
                                         uploadedBy: user.uid,
                                         uploadedAt: new Date().toISOString()
                                       }
-                                    });
+                                    };
+                                    
+                                    await uploadBytes(storageRef, file, metadata);
                                     
                                     const url = await getDownloadURL(storageRef);
                                     setEditingItem({ ...editingItem, image: url });
