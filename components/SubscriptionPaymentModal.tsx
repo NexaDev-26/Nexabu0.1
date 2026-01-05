@@ -192,9 +192,12 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
           updatedAt: new Date().toISOString()
         });
 
-        onPaymentSubmitted(transactionRef.toUpperCase() || confirmationRef.id, selectedProvider);
+        onPaymentSubmitted(transactionRef.trim().toUpperCase() || confirmationRef.id, selectedProvider);
         showNotification('Payment submitted! Admin will verify your payment to activate your subscription.', 'success');
         onClose();
+      } else {
+        showNotification('Unable to submit payment. Database or user not available. Please refresh and try again.', 'error');
+        setIsProcessing(false);
       }
     } catch (error: any) {
       console.error('Payment submission error:', error);
