@@ -274,21 +274,42 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         // Send WhatsApp notification if configured
         try {
           const { sendOrderConfirmation } = await import('../services/whatsappService');
-          const { getDocs, query, where, collection } = await import('firebase/firestore');
           
           // Get order details
-          const orderDoc = await getDocs(query(collection(db, 'orders'), where('__name__', '==', finalOrderId)));
-          if (!orderDoc.empty) {
-            const orderData = { id: finalOrderId, ...orderDoc.docs[0].data() } as Order;
+          const orderDocRef = doc(db, 'orders', finalOrderId);
+          const orderDoc = await getDoc(orderDocRef);
+          
+          if (orderDoc.exists()) {
+            const orderData = { id: finalOrderId, ...orderDoc.data() } as Order;
             
             // Get vendor phone
-            const vendorDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', sellerId)));
-            const vendorPhone = vendorDoc.empty ? null : vendorDoc.docs[0].data().phone;
+            let vendorPhone = null;
+            if (sellerId) {
+              const vendorDocRef = doc(db, 'users', sellerId);
+              const vendorDoc = await getDoc(vendorDocRef);
+              if (vendorDoc.exists()) {
+                vendorPhone = vendorDoc.data().phone;
+              }
+            }
+            
+            // Get customer phone if available
+            let customerPhone = '';
+            if (orderData.customerId) {
+              try {
+                const customerDocRef = doc(db, 'users', orderData.customerId);
+                const customerDoc = await getDoc(customerDocRef);
+                if (customerDoc.exists()) {
+                  customerPhone = customerDoc.data().phone || '';
+                }
+              } catch {
+                // Ignore error
+              }
+            }
             
             // Create customer object
             const customer = {
               fullName: orderData.customerName,
-              phone: orderData.customerId ? (await getDocs(query(collection(db, 'users'), where('uid', '==', orderData.customerId)))).docs[0]?.data()?.phone || '' : ''
+              phone: customerPhone
             };
             
             // Send WhatsApp to vendor
