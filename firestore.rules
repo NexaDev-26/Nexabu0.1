@@ -121,16 +121,38 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // 6. Business Data Collections (Strict 'uid' ownership)
+    // 6. Transactions (Special handling for customer orders)
+    // Customers can create transactions for orders (uid = vendorId)
+    // Vendors and their staff can read/update/delete their transactions
+    match /transactions/{transactionId} {
+      // Read: Owner (vendor) or staff, or customer who created it
+      allow read: if isAuthenticated() && (
+        isOwnerOrStaff(resource.data.uid) ||
+        resource.data.userId == request.auth.uid ||
+        (resource.data.vendorId && isOwnerOrStaff(resource.data.vendorId))
+      );
+      
+      // Create: Any authenticated user can create transactions
+      // Transaction uid should be vendorId (vendor owns the transaction)
+      allow create: if isAuthenticated();
+      
+      // Update/Delete: Only vendor or staff (owner of the transaction)
+      allow update, delete: if isAuthenticated() && (
+        isOwnerOrStaff(resource.data.uid) ||
+        (resource.data.vendorId && isOwnerOrStaff(resource.data.vendorId))
+      );
+    }
+
+    // 7. Business Data Collections (Strict 'uid' ownership)
     // Applies to: branches, customers, suppliers, purchase_orders, 
-    // inventory_adjustments, transactions, deliveries, drivers, 
+    // inventory_adjustments, deliveries, drivers, 
     // credit_applications, wholesale_orders, item_groups, item_categories, item_units
     // expenses, expense_categories, bills, invoices, stock_alerts, alert_settings
     // warehouse_transfers, delivery_tracking, shop_pages, abandoned_carts
     match /{collection}/{docId} {
       allow read: if isAuthenticated() && 
         collection in ['branches', 'customers', 'suppliers', 'purchase_orders', 
-                       'inventory_adjustments', 'transactions', 'deliveries', 
+                       'inventory_adjustments', 'deliveries', 
                        'drivers', 'credit_applications', 'wholesale_orders',
                        'item_groups', 'item_categories', 'item_units',
                        'expenses', 'expense_categories', 'bills', 'invoices',
@@ -140,7 +162,7 @@ service cloud.firestore {
 
       allow create: if isAuthenticated() && 
         collection in ['branches', 'customers', 'suppliers', 'purchase_orders', 
-                       'inventory_adjustments', 'transactions', 'deliveries', 
+                       'inventory_adjustments', 'deliveries', 
                        'drivers', 'credit_applications', 'wholesale_orders',
                        'item_groups', 'item_categories', 'item_units',
                        'expenses', 'expense_categories', 'bills', 'invoices',
@@ -150,7 +172,7 @@ service cloud.firestore {
 
       allow update: if isAuthenticated() && 
         collection in ['branches', 'customers', 'suppliers', 'purchase_orders', 
-                       'inventory_adjustments', 'transactions', 'deliveries', 
+                       'inventory_adjustments', 'deliveries', 
                        'drivers', 'credit_applications', 'wholesale_orders',
                        'item_groups', 'item_categories', 'item_units',
                        'expenses', 'expense_categories', 'bills', 'invoices',
@@ -160,7 +182,7 @@ service cloud.firestore {
 
       allow delete: if isAuthenticated() && 
         collection in ['branches', 'customers', 'suppliers', 'purchase_orders', 
-                       'inventory_adjustments', 'transactions', 'deliveries', 
+                       'inventory_adjustments', 'deliveries', 
                        'drivers', 'credit_applications', 'wholesale_orders',
                        'item_groups', 'item_categories', 'item_units',
                        'expenses', 'expense_categories', 'bills', 'invoices',
