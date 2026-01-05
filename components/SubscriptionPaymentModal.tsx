@@ -174,13 +174,14 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
 
         // Create transaction record
         await addDoc(collection(db, 'transactions'), {
+          uid: user.uid, // Required for Firestore permission check
           userId: user.uid,
           orderId: confirmationRef.id, // Link to payment confirmation
           amount,
           currency: 'TZS',
           provider: selectedProvider,
           status: 'PENDING_VERIFICATION',
-          referenceId: transactionRef.toUpperCase() || confirmationRef.id,
+          referenceId: transactionRef.trim().toUpperCase() || confirmationRef.id,
           createdAt: new Date().toISOString()
         });
 

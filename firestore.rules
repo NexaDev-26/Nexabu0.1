@@ -30,9 +30,15 @@ service cloud.firestore {
     }
 
     // Prevent users from changing sensitive fields during updates
+    // Allow status updates for package payment verification
     function notUpdatingSensitiveFields() {
-      return !request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['role', 'employerId', 'creditLimit', 'walletBalance', 'uid', 'status']);
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      // Allow status updates if updating to package payment verification status
+      if (affectedKeys.hasOnly(['status', 'packageId', 'subscriptionPlan', 'updatedAt']) && 
+          request.resource.data.status == 'Pending Payment Verification') {
+        return true;
+      }
+      return !affectedKeys.hasAny(['role', 'employerId', 'creditLimit', 'walletBalance', 'uid']);
     }
 
     // Ensure the 'uid' field (ownership) is not changed during update
@@ -177,7 +183,22 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // 9. Audit Logs
+    // 9. Payment Confirmations (Package subscription payments)
+    match /payment_confirmations/{confirmationId} {
+      // Read: Own confirmations or Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // Create: Any authenticated user can create their own payment confirmations
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      
+      // Update/Delete: Only admins (for verification/management)
+      allow update, delete: if isAdmin();
+    }
+
+    // 10. Audit Logs
     match /audit_logs/{logId} {
       // Read: Own logs or Admin can read all
       allow read: if isAuthenticated() && (
