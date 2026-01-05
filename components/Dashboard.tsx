@@ -102,7 +102,7 @@ export const Dashboard: React.FC = () => {
         const dayStrFull = d.toISOString().split('T')[0];
         const dayOrders = orders.filter(o => {
           const orderDate = new Date(o.date).toISOString().split('T')[0];
-          return orderDate === dayStrFull;
+          return orderDate === dayStrFull && o.status !== 'Cancelled';
         });
         const dayExpenses = expenses.filter(e => {
           const expenseDate = new Date(e.date).toISOString().split('T')[0];
@@ -110,7 +110,24 @@ export const Dashboard: React.FC = () => {
         });
         const income = dayOrders.reduce((sum, o) => sum + o.total, 0);
         const expense = dayExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-        return { name: dayStr, Income: income, Expense: expense, Profit: income - expense };
+        
+        // Calculate daily profit as selling price - buying price
+        let dayCogs = 0;
+        dayOrders.forEach(order => {
+          if (Array.isArray(order.items)) {
+            order.items.forEach((item: any) => {
+              if (item.productId) {
+                const prod = productIndex.get(item.productId);
+                if (prod && typeof prod.buyingPrice === 'number' && prod.buyingPrice > 0) {
+                  dayCogs += prod.buyingPrice * (item.quantity || 1);
+                }
+              }
+            });
+          }
+        });
+        const dayProfit = income - dayCogs;
+        
+        return { name: dayStr, Income: income, Expense: expense, Profit: dayProfit };
     });
 
     return { 
