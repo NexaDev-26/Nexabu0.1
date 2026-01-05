@@ -151,6 +151,7 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
           paymentCode: transactionRef.toUpperCase() || `PAY-${Date.now()}`,
           amount,
           paymentMethod: selectedProvider,
+          paymentMethodType: mobileMoneyMethods.includes(selectedProvider) ? paymentMethodType : null,
           status: 'pending' as const,
           createdAt: new Date().toISOString()
         };
