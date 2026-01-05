@@ -34,11 +34,9 @@ service cloud.firestore {
     function notUpdatingSensitiveFields() {
       let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
       // Allow status updates if updating to package payment verification status
-      if (affectedKeys.hasOnly(['status', 'packageId', 'subscriptionPlan', 'updatedAt']) && 
-          request.resource.data.status == 'Pending Payment Verification') {
-        return true;
-      }
-      return !affectedKeys.hasAny(['role', 'employerId', 'creditLimit', 'walletBalance', 'uid']);
+      return (affectedKeys.hasOnly(['status', 'packageId', 'subscriptionPlan', 'updatedAt']) && 
+              request.resource.data.status == 'Pending Payment Verification') ||
+             !affectedKeys.hasAny(['role', 'employerId', 'creditLimit', 'walletBalance', 'uid']);
     }
 
     // Ensure the 'uid' field (ownership) is not changed during update
