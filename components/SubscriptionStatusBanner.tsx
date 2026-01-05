@@ -3,13 +3,15 @@
  * Shows payment verification status and subscription information
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { AlertCircle, CheckCircle, Clock, XCircle, ArrowRight } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
 import { needsPaymentVerification, getSubscriptionStatusMessage } from '../utils/featureGating';
+import { SubscriptionStatusModal } from './SubscriptionStatusModal';
 
 export const SubscriptionStatusBanner: React.FC = () => {
   const { user } = useAppContext();
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   
   if (!user) return null;
   
@@ -60,15 +62,9 @@ export const SubscriptionStatusBanner: React.FC = () => {
           <p className={`text-sm ${config.text} opacity-90`}>
             {statusMessage}
           </p>
-          {isPending && (
+          {(isPending || isRejected) && (
             <button
-              onClick={() => {
-                if (window.location.hash) {
-                  window.location.hash = '#subscription';
-                } else {
-                  window.location.href = '#subscription';
-                }
-              }}
+              onClick={() => setIsStatusModalOpen(true)}
               className="mt-2 text-sm font-medium text-yellow-800 dark:text-yellow-200 hover:underline flex items-center gap-1"
             >
               Check Subscription Status
@@ -77,6 +73,12 @@ export const SubscriptionStatusBanner: React.FC = () => {
           )}
         </div>
       </div>
+      
+      {/* Subscription Status Modal */}
+      <SubscriptionStatusModal
+        isOpen={isStatusModalOpen}
+        onClose={() => setIsStatusModalOpen(false)}
+      />
     </div>
   );
 };

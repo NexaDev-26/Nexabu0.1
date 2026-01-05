@@ -1083,14 +1083,15 @@ export const Storefront: React.FC = () => {
           orderData={pendingOrderData}
           amount={pendingOrderAmount}
           sellerId={selectedVendorId || cart[0]?.product.uid}
-          onPaymentSubmitted={async (transactionRef: string) => {
+          onPaymentSubmitted={async (transactionRef: string, viaWhatsapp?: boolean) => {
             // Payment submitted - clear cart and close modals
+            // WhatsApp redirect is handled in PaymentModal
             setCart([]);
             await saveCart([]);
             setIsPaymentModalOpen(false);
             setPendingOrderData(null);
             setPendingOrderAmount(0);
-            showNotification("Order placed! Payment submitted for vendor verification.", "success");
+            // Notification is shown in PaymentModal
           }}
         />
       )}

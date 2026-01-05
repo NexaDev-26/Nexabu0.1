@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Order, Product, Driver, UserRole, DeliveryTask } from '../types';
-import { Eye, Truck, CheckCircle, XCircle, Clock, Package, FileText, X, UserPlus, Plus, Phone, MapPin, Loader2 } from 'lucide-react';
+import { Eye, Truck, CheckCircle, XCircle, Clock, Package, FileText, X, UserPlus, Plus, Phone, MapPin, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { OrderProgressStepper } from './OrderProgressStepper';
 import { Receipt } from './Receipt';
 import { useAppContext } from '../hooks/useAppContext';
 import { db, isFirebaseEnabled } from '../firebaseConfig';
-import { collection, query, where, onSnapshot, addDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, doc, updateDoc, getDocs, deleteDoc } from 'firebase/firestore';
 
 export const Orders: React.FC = () => {
   const { orders, user, showNotification } = useAppContext();
@@ -17,6 +17,9 @@ export const Orders: React.FC = () => {
   const [isAssigning, setIsAssigning] = useState(false);
   const [isAddingDriver, setIsAddingDriver] = useState(false);
   const [newDriver, setNewDriver] = useState({ name: '', phone: '', plateNumber: '' });
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Load drivers for vendor/pharmacy
   useEffect(() => {
@@ -42,8 +45,37 @@ export const Orders: React.FC = () => {
     }
   }, [isFirebaseEnabled, user]);
 
-  const getStatusColor = (status: string) => ({'Delivered': 'bg-green-100 text-green-800', 'Processing': 'bg-blue-100 text-blue-800', 'Cancelled': 'bg-red-100 text-red-800', 'Pending': 'bg-yellow-100 text-yellow-800'}[status] || 'bg-gray-100');
+  const getStatusColor = (status: string, paymentStatus?: string) => {
+    // Handle payment status separately
+    if (paymentStatus === 'PAYMENT_FAILED' || paymentStatus === 'FAILED') {
+      return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800';
+    }
+    
+    // Handle order status
+    const statusColors: { [key: string]: string } = {
+      'Delivered': 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-800',
+      'Processing': 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
+      'Cancelled': 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800',
+      'Pending': 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800'
+    };
+    return statusColors[status] || 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700';
+  };
+  
   const getStatusIcon = (status: string) => ({'Delivered': <CheckCircle size={12} />, 'Processing': <Truck size={12} />, 'Cancelled': <XCircle size={12} />, 'Pending': <Clock size={12} />}[status] || null);
+  
+  const getPaymentStatusText = (paymentStatus?: string) => {
+    if (!paymentStatus) return null;
+    if (paymentStatus === 'PAYMENT_FAILED' || paymentStatus === 'FAILED' || paymentStatus === 'REJECTED') {
+      return 'PAYMENT FAILED';
+    }
+    if (paymentStatus === 'PENDING_VERIFICATION') {
+      return 'PENDING PAYMENT';
+    }
+    if (paymentStatus === 'COMPLETED' || paymentStatus === 'PAID') {
+      return null; // Don't show if paid
+    }
+    return paymentStatus;
+  };
 
   const handleViewDetails = (order: Order) => {
     setSelectedOrder(order);
@@ -122,6 +154,36 @@ export const Orders: React.FC = () => {
       showNotification(`Failed to assign driver: ${error.message}`, 'error');
     } finally {
       setIsAssigning(false);
+    }
+  };
+
+  const handleDeleteOrder = (order: Order) => {
+    setOrderToDelete(order);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDeleteOrder = async () => {
+    if (!orderToDelete || !user?.uid || !db || !isFirebaseEnabled) return;
+
+    setIsDeleting(true);
+    try {
+      // Mark order as voided instead of deleting (for audit trail)
+      await updateDoc(doc(db, 'orders', orderToDelete.id), {
+        voided: true,
+        status: 'Cancelled',
+        updatedAt: new Date().toISOString(),
+        voidedAt: new Date().toISOString(),
+        voidedBy: user.uid
+      });
+
+      showNotification('Order deleted successfully', 'success');
+      setIsDeleteModalOpen(false);
+      setOrderToDelete(null);
+    } catch (error: any) {
+      console.error('Error deleting order:', error);
+      showNotification(`Failed to delete order: ${error.message}`, 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -213,6 +275,76 @@ export const Orders: React.FC = () => {
               <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
                 <OrderProgressStepper order={selectedOrder} />
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && orderToDelete && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[2147483000] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white dark:bg-neutral-900 rounded-xl shadow-2xl w-full max-w-md border border-neutral-200 dark:border-neutral-800">
+            <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg">
+                  <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-neutral-900 dark:text-white mb-1">
+                    Delete Order?
+                  </h3>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    Are you sure you want to delete this order? This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 bg-neutral-50 dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-neutral-600 dark:text-neutral-400">Order ID:</span>
+                  <span className="font-mono text-neutral-900 dark:text-white">{orderToDelete.id.slice(-8)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-600 dark:text-neutral-400">Customer:</span>
+                  <span className="text-neutral-900 dark:text-white">{orderToDelete.customerName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-600 dark:text-neutral-400">Total:</span>
+                  <span className="font-semibold text-neutral-900 dark:text-white">
+                    TZS {orderToDelete.total.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setOrderToDelete(null);
+                }}
+                disabled={isDeleting}
+                className="px-4 py-2 border border-neutral-200 dark:border-neutral-700 rounded-lg text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteOrder}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Delete Order
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -348,12 +480,31 @@ export const Orders: React.FC = () => {
             <table className="w-full text-left text-sm min-w-[640px]">
               <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400"><tr><th className="p-4">Order ID</th><th className="p-4">Customer</th><th className="p-4">Total</th><th className="p-4">Status</th><th className="p-4"></th></tr></thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                {orders.map((order) => (
+                {orders.filter(order => !order.voided).length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-neutral-500 dark:text-neutral-400">
+                      No orders found
+                    </td>
+                  </tr>
+                ) : (
+                  orders.filter(order => !order.voided).map((order) => (
                   <tr key={order.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
                     <td className="p-4 font-mono text-xs text-neutral-500 dark:text-neutral-400 break-all">{order.id}</td>
                     <td className="p-4 text-neutral-900 dark:text-white">{order.customerName}</td>
                     <td className="p-4 text-neutral-900 dark:text-white">TZS {order.total.toLocaleString()}</td>
-                    <td className="p-4"><span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>{getStatusIcon(order.status)}{order.status}</span></td>
+                    <td className="p-4">
+                      {getPaymentStatusText(order.paymentStatus) ? (
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status, order.paymentStatus)}`}>
+                          <XCircle size={12} />
+                          {getPaymentStatusText(order.paymentStatus)}
+                        </span>
+                      ) : (
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
+                          {getStatusIcon(order.status)}
+                          {order.status}
+                        </span>
+                      )}
+                    </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center gap-2 justify-end">
                         {order.status === 'Delivered' ? (
@@ -362,7 +513,7 @@ export const Orders: React.FC = () => {
                           </button>
                         ) : (
                           <>
-                            {(user?.role === UserRole.VENDOR || user?.role === UserRole.PHARMACY) && 
+                            {(user?.role === UserRole.VENDOR || user?.role === UserRole.PHARMACY || user?.role === UserRole.ADMIN) && 
                              order.status !== 'Cancelled' && 
                              !order.courierId && (
                               <button 
@@ -380,12 +531,22 @@ export const Orders: React.FC = () => {
                             <button onClick={() => handleViewDetails(order)} className="text-orange-600 dark:text-orange-400 text-xs font-medium flex items-center gap-1 hover:underline">
                               <Eye size={16} />View
                             </button>
+                            {(user?.role === UserRole.VENDOR || user?.role === UserRole.PHARMACY || user?.role === UserRole.ADMIN) && (
+                              <button 
+                                onClick={() => handleDeleteOrder(order)} 
+                                className="text-red-600 dark:text-red-400 text-xs font-medium flex items-center gap-1 hover:underline"
+                                title="Delete order"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>
