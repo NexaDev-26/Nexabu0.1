@@ -126,14 +126,28 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
       return;
     }
 
-    // For mobile money, require transaction reference
+    // For mobile money, require transaction reference and payment method type
     if (mobileMoneyMethods.includes(selectedProvider)) {
+      if (!paymentMethodType) {
+        showNotification('Please select a payment method type (STK Push or Manual Entry)', 'error');
+        return;
+      }
       if (!transactionRef.trim()) {
         showNotification('Please enter your transaction reference code', 'error');
         return;
       }
       if (transactionRef.length < 6) {
         showNotification('Transaction reference code must be at least 6 characters', 'error');
+        return;
+      }
+    } else {
+      // For non-mobile money methods, also require transaction reference
+      if (!transactionRef.trim()) {
+        showNotification('Please enter your payment reference/confirmation code', 'error');
+        return;
+      }
+      if (transactionRef.length < 6) {
+        showNotification('Payment reference code must be at least 6 characters', 'error');
         return;
       }
     }
@@ -148,7 +162,7 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
           userEmail: user.email,
           packageId,
           packageName,
-          paymentCode: transactionRef.toUpperCase() || `PAY-${Date.now()}`,
+          paymentCode: transactionRef.trim().toUpperCase() || `PAY-${Date.now()}`,
           amount,
           paymentMethod: selectedProvider,
           paymentMethodType: mobileMoneyMethods.includes(selectedProvider) ? paymentMethodType : null,
@@ -184,7 +198,8 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
       }
     } catch (error: any) {
       console.error('Payment submission error:', error);
-      showNotification('Failed to submit payment. Please try again.', 'error');
+      const errorMessage = error?.message || 'Unknown error';
+      showNotification(`Failed to submit payment: ${errorMessage}. Please check your connection and try again.`, 'error');
     } finally {
       setIsProcessing(false);
     }
