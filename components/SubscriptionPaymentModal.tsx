@@ -331,7 +331,7 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
           )}
 
           {/* Payment Instructions */}
-          {selectedProvider && adminPaymentDetails && (
+          {selectedProvider && adminPaymentConfig && (
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
@@ -340,9 +340,37 @@ export const SubscriptionPaymentModal: React.FC<SubscriptionPaymentModalProps> =
                     Payment Instructions
                   </p>
                   <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                    <p><strong>Network:</strong> {adminPaymentDetails.network}</p>
-                    <p><strong>Phone:</strong> {adminPaymentDetails.phone}</p>
-                    <p><strong>Account Name:</strong> {adminPaymentDetails.name}</p>
+                    {selectedProvider === 'MPESA' && adminPaymentConfig.mpesa?.enabled && (
+                      <>
+                        <p><strong>Network:</strong> M-PESA</p>
+                        <p><strong>Phone:</strong> {adminPaymentConfig.mpesa.merchantNumber}</p>
+                        <p><strong>Account Name:</strong> {adminPaymentConfig.mpesa.accountName}</p>
+                      </>
+                    )}
+                    {selectedProvider === 'TIGO_PESA' && adminPaymentConfig.tigoPesa?.enabled && (
+                      <>
+                        <p><strong>Network:</strong> Tigo Pesa</p>
+                        <p><strong>Phone:</strong> {adminPaymentConfig.tigoPesa.merchantNumber}</p>
+                        <p><strong>Account Name:</strong> {adminPaymentConfig.tigoPesa.accountName}</p>
+                      </>
+                    )}
+                    {selectedProvider === 'AIRTEL_MONEY' && adminPaymentConfig.airtelMoney?.enabled && (
+                      <>
+                        <p><strong>Network:</strong> Airtel Money</p>
+                        <p><strong>Phone:</strong> {adminPaymentConfig.airtelMoney.merchantNumber}</p>
+                        <p><strong>Account Name:</strong> {adminPaymentConfig.airtelMoney.accountName}</p>
+                      </>
+                    )}
+                    {selectedProvider === 'BANK_TRANSFER' && adminPaymentConfig.bankTransfer?.enabled && (
+                      <>
+                        <p><strong>Bank:</strong> {adminPaymentConfig.bankTransfer.bankName}</p>
+                        <p><strong>Account Number:</strong> {adminPaymentConfig.bankTransfer.accountNumber}</p>
+                        <p><strong>Account Name:</strong> {adminPaymentConfig.bankTransfer.accountName}</p>
+                        {adminPaymentConfig.bankTransfer.branchName && (
+                          <p><strong>Branch:</strong> {adminPaymentConfig.bankTransfer.branchName}</p>
+                        )}
+                      </>
+                    )}
                     <p className="mt-2">Send TZS {amount.toLocaleString()} to the above details.</p>
                   </div>
                 </div>
