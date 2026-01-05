@@ -416,7 +416,8 @@ export const Storefront: React.FC = () => {
         setPendingOrderData({
           ...orderData,
           sellerId, // Include sellerId for customer creation
-          customerDetails // Include customer details for customer creation
+          customerDetails, // Include customer details for customer creation
+          viaWhatsapp: viaWhatsapp // Track if this is a WhatsApp order
         });
         setPendingOrderAmount(totalAmount);
         setIsPaymentModalOpen(true);
