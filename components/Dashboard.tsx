@@ -59,8 +59,32 @@ export const Dashboard: React.FC = () => {
   const stats = useMemo(() => {
     const totalIncome = orders.reduce((sum, o) => sum + (o.status !== 'Cancelled' ? o.total : 0), 0);
     // Use real expenses from database, fallback to 0 if none exist
-    const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0); 
-    const totalProfit = totalIncome - totalExpenses;
+    const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    
+    // Calculate profit as selling price - buying price (COGS)
+    // Build product index for profit calculations
+    const productIndex = new Map<string, Product>();
+    products.forEach(p => {
+      productIndex.set(p.id, p);
+    });
+    
+    let totalCogs = 0; // Cost of Goods Sold (buying price)
+    orders.forEach(order => {
+      if (order.status === 'Cancelled') return;
+      if (Array.isArray(order.items)) {
+        order.items.forEach((item: any) => {
+          if (item.productId) {
+            const prod = productIndex.get(item.productId);
+            if (prod && typeof prod.buyingPrice === 'number' && prod.buyingPrice > 0) {
+              totalCogs += prod.buyingPrice * (item.quantity || 1);
+            }
+          }
+        });
+      }
+    });
+    
+    // Total profit = Total Sales - Cost of Goods Sold (buying price)
+    const totalProfit = totalIncome - totalCogs;
     
     const paidInvoices = orders.filter(o => o.status === 'Delivered').length;
     const outstandingInvoices = orders.filter(o => o.status === 'Pending' || o.status === 'Processing').length;
@@ -92,7 +116,8 @@ export const Dashboard: React.FC = () => {
     return { 
         totalIncome, 
         totalExpenses, 
-        totalProfit, 
+        totalProfit,
+        totalCogs,
         paidInvoices, 
         outstandingInvoices,
         activeDays,
