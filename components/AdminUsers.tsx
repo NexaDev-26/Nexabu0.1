@@ -40,6 +40,34 @@ export const AdminUsers: React.FC = () => {
   const [paymentCode, setPaymentCode] = useState('');
   const [selectedPackageId, setSelectedPackageId] = useState('');
 
+  // Load packages from Firestore or use defaults
+  useEffect(() => {
+    if (isFirebaseEnabled && db) {
+      const loadPackages = async () => {
+        try {
+          const packagesSnapshot = await getDocs(collection(db, 'packages'));
+          if (!packagesSnapshot.empty) {
+            const loadedPackages = packagesSnapshot.docs.map(doc => ({
+              ...doc.data(),
+              id: doc.id
+            } as SubscriptionPackage));
+            setPackages(loadedPackages);
+          } else {
+            // Use default packages if none in Firestore
+            setPackages(DEFAULT_PACKAGES);
+          }
+        } catch (error) {
+          console.error('Error loading packages:', error);
+          // Fallback to default packages on error
+          setPackages(DEFAULT_PACKAGES);
+        }
+      };
+      loadPackages();
+    } else {
+      setPackages(DEFAULT_PACKAGES);
+    }
+  }, []);
+
   // Load payment confirmations
   useEffect(() => {
     if (isFirebaseEnabled && db) {
@@ -231,10 +259,27 @@ export const AdminUsers: React.FC = () => {
   const handleConfirmPayment = async (confirmation: PaymentConfirmation) => {
     if (!db || !auth?.currentUser) return;
 
-    const selectedPkg = packages.find(p => p.id === confirmation.packageId);
+    // Try to find package by ID first, then by name (for backward compatibility)
+    let selectedPkg = packages.find(p => p.id === confirmation.packageId);
+    
+    // If not found by ID, try to find by package name
     if (!selectedPkg) {
-      showNotification('Package not found', 'error');
-      return;
+      selectedPkg = packages.find(p => p.name === confirmation.packageName);
+    }
+    
+    // If still not found, create a fallback package from the confirmation data
+    if (!selectedPkg) {
+      console.warn(`Package not found for ID: ${confirmation.packageId}, Name: ${confirmation.packageName}`);
+      // Create a temporary package object from confirmation data
+      selectedPkg = {
+        id: confirmation.packageId || `pkg_${confirmation.packageName.toLowerCase()}`,
+        name: confirmation.packageName,
+        price: confirmation.amount,
+        period: 'Monthly',
+        services: [],
+        color: confirmation.packageName === 'Premium' ? 'bg-orange-600' : 
+               confirmation.packageName === 'Enterprise' ? 'bg-purple-600' : 'bg-neutral-800'
+      };
     }
 
     try {

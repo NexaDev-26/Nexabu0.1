@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Product, InventoryAdjustment, ItemGroup, ItemCategory, ItemUnit, UnitConversion, User } from '../types';
-import { Plus, Search, AlertTriangle, Filter, Save, X, Trash2, Edit2, Layers, Grid, Scale, RefreshCw, ChevronDown, Check, ArrowRightLeft, ScanBarcode, Camera, CameraOff, Upload, Store } from 'lucide-react';
+import { Product, InventoryAdjustment, ItemGroup, ItemCategory, ItemUnit, UnitConversion, User, UserRole, Branch } from '../types';
+import { Plus, Search, AlertTriangle, Filter, Save, X, Trash2, Edit2, Layers, Grid, Scale, RefreshCw, ChevronDown, Check, ArrowRightLeft, ScanBarcode, Camera, CameraOff, Upload, Store, MapPin } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
 import { db, isFirebaseEnabled, storage } from '../firebaseConfig';
 import { collection, addDoc, doc, updateDoc, deleteDoc, query, where, onSnapshot, orderBy, getDocs, getDoc } from 'firebase/firestore';
@@ -9,7 +9,7 @@ import { BulkImportModal } from './BulkImportModal';
 import { useDebounce } from '../hooks/useDebounce';
 
 export const Inventory: React.FC = () => {
-  const { user, showNotification } = useAppContext();
+  const { user, showNotification, allUsers, branches } = useAppContext();
   const [activeTab, setActiveTab] = useState<'items' | 'adjustments' | 'groups' | 'categories' | 'units' | 'conversions'>('items');
   
   // Data State
@@ -19,6 +19,8 @@ export const Inventory: React.FC = () => {
   const [categories, setCategories] = useState<ItemCategory[]>([]);
   const [units, setUnits] = useState<ItemUnit[]>([]);
   const [storeNames, setStoreNames] = useState<{ [uid: string]: string }>({});
+  const [storeLocations, setStoreLocations] = useState<{ [uid: string]: string }>({});
+  const [branchNames, setBranchNames] = useState<{ [branchId: string]: string }>({});
   
   // UI State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -40,48 +42,73 @@ export const Inventory: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
-  // Load store names for products
+  // Load branch names
+  useEffect(() => {
+    if (branches.length > 0) {
+      const names: { [branchId: string]: string } = {};
+      branches.forEach(branch => {
+        names[branch.id] = branch.name;
+      });
+      setBranchNames(names);
+    }
+  }, [branches]);
+
+  // Load store names and locations for products
   useEffect(() => {
     if (isFirebaseEnabled && db && items.length > 0) {
-      const loadStoreNames = async () => {
+      const loadStoreInfo = async () => {
         const uniqueUids = [...new Set(items.map(item => item.uid))];
         const names: { [uid: string]: string } = {};
+        const locations: { [uid: string]: string } = {};
         
         for (const uid of uniqueUids) {
           if (!storeNames[uid]) {
             try {
-              // Get user document directly by document ID (uid is the document ID in users collection)
-              const userDocRef = doc(db, 'users', uid);
-              const userDocSnap = await getDoc(userDocRef);
-              
-              if (userDocSnap.exists()) {
-                const userData = userDocSnap.data() as User;
-                names[uid] = userData.storeName || userData.name || 'Unknown Store';
+              // First try from allUsers context
+              const userFromContext = allUsers.find(u => u.uid === uid);
+              if (userFromContext) {
+                names[uid] = userFromContext.storeName || userFromContext.name || 'Unknown Store';
+                locations[uid] = userFromContext.location || '';
               } else {
-                names[uid] = 'Unknown Store';
+                // Get user document directly by document ID (uid is the document ID in users collection)
+                const userDocRef = doc(db, 'users', uid);
+                const userDocSnap = await getDoc(userDocRef);
+                
+                if (userDocSnap.exists()) {
+                  const userData = userDocSnap.data() as User;
+                  names[uid] = userData.storeName || userData.name || 'Unknown Store';
+                  locations[uid] = userData.location || '';
+                } else {
+                  names[uid] = 'Unknown Store';
+                  locations[uid] = '';
+                }
               }
             } catch (error) {
-              console.error('Error loading store name for uid:', uid, error);
+              console.error('Error loading store info for uid:', uid, error);
               names[uid] = 'Unknown Store';
+              locations[uid] = '';
             }
           } else {
             names[uid] = storeNames[uid];
+            locations[uid] = storeLocations[uid] || '';
           }
         }
         
         if (Object.keys(names).length > 0) {
           setStoreNames(prev => ({ ...prev, ...names }));
+          setStoreLocations(prev => ({ ...prev, ...locations }));
         }
       };
       
-      loadStoreNames();
+      loadStoreInfo();
     }
-  }, [items.length, storeNames]);
+  }, [items.length, storeNames, allUsers]);
 
-  // Sync Data - Only show products inserted by stores (where uid matches store owner)
+  // Sync Data - Show all products for admins, filtered for vendors/pharmacies
   useEffect(() => {
     if (isFirebaseEnabled && db && user?.uid) {
         const targetUid = user.employerId || user.uid;
+        const isAdmin = user.role === UserRole.ADMIN;
         
         const handleError = (error: any) => {
             if (error.code !== 'permission-denied') {
@@ -90,16 +117,21 @@ export const Inventory: React.FC = () => {
         };
 
         const unsubs = [
-            // Only load products where uid matches the store owner (not all products)
+            // Load all products for admin, filtered products for vendors/pharmacies
             onSnapshot(
-              query(collection(db, 'products'), where('uid', '==', targetUid)), 
+              isAdmin 
+                ? query(collection(db, 'products')) // Admin sees all products
+                : query(collection(db, 'products'), where('uid', '==', targetUid)), // Vendors see only their products
               s => {
                 const products = s.docs.map(d => ({...d.data(), id: d.id} as Product));
-                // Ensure we only show products from stores (vendors/pharmacies), not from other sources
-                const storeProducts = products.filter(p => {
-                  // Products must have uid that matches a store owner
-                  return p.uid === targetUid;
-                });
+                // For non-admin, filter to only show products from stores
+                const storeProducts = isAdmin 
+                  ? products.filter(p => {
+                      // For admin, only show products from vendors/pharmacies
+                      const productOwner = allUsers.find(u => u.uid === p.uid);
+                      return productOwner && (productOwner.role === UserRole.VENDOR || productOwner.role === UserRole.PHARMACY);
+                    })
+                  : products.filter(p => p.uid === targetUid);
                 setItems(storeProducts);
               }, 
               handleError
@@ -282,7 +314,11 @@ export const Inventory: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
             <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">Inventory Management</h2>
-            <p className="text-sm text-neutral-500">Track stock, manage groups, and adjustments.</p>
+            <p className="text-sm text-neutral-500">
+              {user?.role === UserRole.ADMIN 
+                ? 'View all products from all vendors and pharmacies with complete details.'
+                : 'Track stock, manage groups, and adjustments.'}
+            </p>
         </div>
         {activeTab === 'items' && (
             <div className="flex gap-2">
@@ -325,8 +361,10 @@ export const Inventory: React.FC = () => {
                   <table className="w-full text-left text-sm">
                       <thead className="bg-neutral-50 dark:bg-neutral-950 text-neutral-500">
                           <tr>
-                              <th className="p-4">Item Name</th>
-                              <th className="p-4">Store</th>
+                              <th className="p-4">Product Details</th>
+                              <th className="p-4">Store Name</th>
+                              <th className="p-4">Branch Name</th>
+                              <th className="p-4">Location</th>
                               <th className="p-4">Barcode</th>
                               <th className="p-4">Category</th>
                               <th className="p-4">Unit</th>
@@ -339,16 +377,66 @@ export const Inventory: React.FC = () => {
                           </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                          {filteredItems.map(item => (
+                          {filteredItems.map(item => {
+                            const productBranch = item.branchId ? branches.find(b => b.id === item.branchId) : null;
+                            return (
                               <tr key={item.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-                                  <td className="p-4 font-medium text-neutral-900 dark:text-white">{item.name}</td>
+                                  <td className="p-4">
+                                    <div className="flex items-start gap-3">
+                                      {item.image && (
+                                        <img 
+                                          src={item.image} 
+                                          alt={item.name}
+                                          className="w-12 h-12 rounded-lg object-cover bg-neutral-100 dark:bg-neutral-800 flex-shrink-0"
+                                          onError={(e) => {
+                                            const target = e.target as HTMLImageElement;
+                                            target.style.display = 'none';
+                                          }}
+                                        />
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-neutral-900 dark:text-white mb-1">{item.name}</p>
+                                        {item.description && (
+                                          <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">
+                                            {item.description}
+                                          </p>
+                                        )}
+                                        {item.expiryDate && (
+                                          <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                                            Exp: {new Date(item.expiryDate).toLocaleDateString()}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
                                   <td className="p-4">
                                     <div className="flex items-center gap-2">
-                                      <Store className="w-4 h-4 text-neutral-400" />
-                                      <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                                      <Store className="w-4 h-4 text-neutral-400 flex-shrink-0" />
+                                      <span className="text-sm font-medium text-neutral-900 dark:text-white">
                                         {storeNames[item.uid] || 'Loading...'}
                                       </span>
                                     </div>
+                                  </td>
+                                  <td className="p-4">
+                                    {productBranch ? (
+                                      <span className="text-sm text-neutral-700 dark:text-neutral-300">
+                                        {productBranch.name}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-neutral-400 dark:text-neutral-600">—</span>
+                                    )}
+                                  </td>
+                                  <td className="p-4">
+                                    {storeLocations[item.uid] ? (
+                                      <div className="flex items-center gap-1">
+                                        <MapPin className="w-3 h-3 text-neutral-400 flex-shrink-0" />
+                                        <span className="text-xs text-neutral-600 dark:text-neutral-400">
+                                          {storeLocations[item.uid]}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-neutral-400 dark:text-neutral-600">—</span>
+                                    )}
                                   </td>
                                   <td className="p-4 font-mono text-xs text-neutral-500">{item.barcode || '-'}</td>
                                   <td className="p-4 text-xs text-neutral-500">

@@ -48,10 +48,7 @@ const LoadingFallback: React.FC = () => (
 );
 import { useAppContext } from './hooks/useAppContext';
 import { 
-  LayoutDashboard, Store, Pill, LogOut, Menu,
-  ShoppingBag, Users, Truck, ShoppingCart, X, Briefcase, Wallet as WalletIcon,
-  Moon, Sun, Bell, Sparkles, Package, Globe, ChevronDown, FileText, UserCircle,
-  Receipt, DollarSign, Calendar, BarChart3, ArrowRightLeft, Trophy
+  Menu, ShoppingCart, Bell, X, ChevronDown, Moon, Sun
 } from 'lucide-react';
 import { auth, db, isFirebaseEnabled } from './firebaseConfig';
 import { doc, getDoc, collection, onSnapshot, query, where, Unsubscribe, DocumentData, Query, setDoc } from 'firebase/firestore';
@@ -60,6 +57,8 @@ import { initOfflineDB } from './services/offlineService';
 import { setupAutoSync } from './services/syncService';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { SubscriptionStatusBanner } from './components/SubscriptionStatusBanner';
+import { EnhancedSidebar } from './components/EnhancedSidebar';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 const getInitials = (name?: string): string => {
   if (!name) return 'U';
@@ -67,16 +66,9 @@ const getInitials = (name?: string): string => {
   return names.length > 1 ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase() : name.substring(0, 2).toUpperCase();
 };
 
-const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active: boolean; onClick: () => void }> = ({ icon, label, active, onClick }) => (
-  <button onClick={onClick} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${active ? 'bg-orange-600 text-white shadow-lg' : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'}`}>
-    {icon}
-    <span className="font-medium text-sm">{label}</span>
-  </button>
-);
-
 export const App: React.FC = () => {
   const { 
-    isAuthenticated, user, role, cart, notification,
+    isAuthenticated, user, role, cart, orders, notification,
     setIsAuthenticated, setUser, setRole, setProducts, setOrders, setBranches, setAllUsers, showNotification, handleLogout 
   } = useAppContext();
 
@@ -230,6 +222,14 @@ export const App: React.FC = () => {
     setIsCustomerProfileSettingsOpen(false);
   };
 
+  // Keyboard shortcuts for navigation
+  useKeyboardShortcuts([
+    { key: 'd', ctrlKey: true, action: () => navigate('dashboard'), description: 'Go to Dashboard' },
+    { key: 'o', ctrlKey: true, action: () => navigate('orders'), description: 'Go to Orders' },
+    { key: 'i', ctrlKey: true, action: () => navigate('inventory'), description: 'Go to Inventory' },
+    { key: 's', ctrlKey: true, action: () => navigate('storefront'), description: 'Go to Storefront' },
+  ], isAuthenticated);
+
   const handleShowAuth = (type: 'login' | 'signup') => {
     setInitialAuthView(type);
     setShowLanding(false);
@@ -354,147 +354,22 @@ export const App: React.FC = () => {
         {notification && <div className={`fixed top-4 right-4 z-[100] p-3 rounded-xl shadow-2xl border flex items-center gap-3 animate-fade-in ${notification.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}><Bell className="w-4 h-4" />{notification.message}</div>}
         {isAuthenticated && <OfflineIndicator />}
         
-        {/* Mobile Sidebar Overlay */}
-        {sidebarOpen && (
-          <div 
-            className="fixed inset-0 bg-black/60 z-20 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
+        {/* Enhanced Sidebar */}
+        {isAuthenticated && (
+          <EnhancedSidebar
+            view={view}
+            role={role}
+            user={user}
+            cart={cart}
+            orders={orders}
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            onNavigate={navigate}
+            onLogout={localLogout}
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
           />
         )}
-
-        <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} fixed lg:static z-30 w-64 bg-neutral-950 border-r border-neutral-800 text-white flex flex-col transition-transform duration-300 shadow-2xl lg:shadow-none h-full`}>
-          <div className="p-6 border-b border-neutral-800 flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-8 h-8 bg-orange-600 rounded-lg flex items-center justify-center font-bold text-xl">N</div><h1 className="font-display font-bold text-xl">Nexabu</h1></div><button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-neutral-800 rounded-lg"><X size={20} /></button></div>
-          <div className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
-            {/* Helper function to check permissions */}
-            {(() => {
-              const hasPermission = (permission: keyof StaffPermissions) => {
-                // Owners (VENDOR, PHARMACY) and ADMIN always have access
-                if (role === UserRole.VENDOR || role === UserRole.PHARMACY || role === UserRole.ADMIN) {
-                  return true;
-                }
-                // Managers have full access
-                if (role === UserRole.MANAGER) {
-                  return true;
-                }
-                // For staff, check permissions
-                if (user?.permissions) {
-                  return user.permissions[permission] === true;
-                }
-                // Default: allow access if no permissions set (backward compatibility)
-                return true;
-              };
-
-              return (
-                <>
-                  {/* Dashboard - Show for customers and staff, or as Dashboard & Analytics for vendors/pharmacies/managers */}
-                  {role === UserRole.CUSTOMER && <>
-                    <SidebarItem icon={<Store size={20} />} label="Marketplace" active={view === 'storefront'} onClick={() => navigate('storefront')} />
-                    <SidebarItem icon={<LayoutDashboard size={20} />} label="My Dashboard" active={view === 'dashboard'} onClick={() => navigate('dashboard')} />
-                  </>}
-                  {[UserRole.SELLER, UserRole.PHARMACIST, UserRole.STAFF].includes(role) && (
-                    <>
-                      <SidebarItem icon={<Store size={20} />} label="Storefront" active={view === 'storefront'} onClick={() => navigate('storefront')} />
-                      {hasPermission('canAccessDashboard') && (
-                        <SidebarItem icon={<LayoutDashboard size={20} />} label="Dashboard" active={view === 'dashboard'} onClick={() => navigate('dashboard')} />
-                      )}
-                    </>
-                  )}
-                  {(role === UserRole.VENDOR || role === UserRole.PHARMACY || role === UserRole.MANAGER) && <>
-                    <SidebarItem icon={<Store size={20} />} label="Storefront" active={view === 'storefront'} onClick={() => navigate('storefront')} />
-                    <SidebarItem icon={<LayoutDashboard size={20} />} label="Dashboard" active={view === 'dashboard' || view === 'analytics'} onClick={() => navigate('dashboard')} />
-                    {hasPermission('canAccessOrders') && (
-                      <SidebarItem icon={<ShoppingBag size={20} />} label="Orders" active={view === 'orders'} onClick={() => navigate('orders')} />
-                    )}
-                    {hasPermission('canAccessCustomers') && (
-                      <SidebarItem icon={<UserCircle size={20} />} label="Customers" active={view === 'customers'} onClick={() => navigate('customers')} />
-                    )}
-                    {hasPermission('canAccessInventory') && (
-                      <SidebarItem icon={<Store size={20} />} label="Inventory" active={view === 'inventory'} onClick={() => navigate('inventory')} />
-                    )}
-                    {hasPermission('canAccessInvoices') && (
-                      <SidebarItem icon={<Receipt size={20} />} label="Invoices" active={view === 'invoices'} onClick={() => navigate('invoices')} />
-                    )}
-                    {hasPermission('canViewReports') && (
-                      <SidebarItem icon={<BarChart3 size={20} />} label="Daily Reports" active={view === 'daily-reports'} onClick={() => navigate('daily-reports')} />
-                    )}
-                    {hasPermission('canAccessDelivery') && (
-                      <SidebarItem icon={<Truck size={20} />} label="Delivery" active={view === 'delivery'} onClick={() => navigate('delivery')} />
-                    )}
-                    {hasPermission('canAccessExpenses') && (
-                      <SidebarItem icon={<DollarSign size={20} />} label="Expenses" active={view === 'expenses'} onClick={() => navigate('expenses')} />
-                    )}
-                  </>}
-                  {[UserRole.SELLER, UserRole.PHARMACIST, UserRole.STAFF].includes(role) && <>
-                    {hasPermission('canAccessPOS') && (
-                      <SidebarItem icon={<ShoppingBag size={20} />} label="POS / Storefront" active={view === 'storefront'} onClick={() => navigate('storefront')} />
-                    )}
-                    {hasPermission('canAccessOrders') && (
-                      <SidebarItem icon={<Receipt size={20} />} label="Orders" active={view === 'orders'} onClick={() => navigate('orders')} />
-                    )}
-                  </>}
-                  {(role === UserRole.VENDOR || role === UserRole.PHARMACY) && <>
-                    {hasPermission('canAccessStaff') && (
-                      <SidebarItem icon={<Briefcase size={20} />} label="Staff & Sellers" active={view === 'staff'} onClick={() => navigate('staff')} />
-                    )}
-                    <SidebarItem icon={<Trophy size={20} />} label="Sales Reps" active={view === 'sales-reps'} onClick={() => navigate('sales-reps')} />
-                    {hasPermission('canAccessProcurement') && (
-                      <SidebarItem icon={<FileText size={20} />} label="Procurement" active={view === 'procurement'} onClick={() => navigate('procurement')} />
-                    )}
-                    {hasPermission('canAccessTransfers') && (
-                      <SidebarItem icon={<ArrowRightLeft size={20} />} label="Transfers" active={view === 'warehouse-transfers' || view === 'transfers'} onClick={() => navigate('warehouse-transfers')} />
-                    )}
-                    {hasPermission('canAccessBills') && (
-                      <SidebarItem icon={<Calendar size={20} />} label="Bills" active={view === 'bills'} onClick={() => navigate('bills')} />
-                    )}
-                    {hasPermission('canAccessWallet') && (
-                      <SidebarItem icon={<WalletIcon size={20} />} label="Wallet" active={view === 'wallet'} onClick={() => navigate('wallet')} />
-                    )}
-                    {hasPermission('canAccessMarketing') && (
-                      <SidebarItem icon={<Sparkles size={20} />} label="Marketing" active={view === 'marketing'} onClick={() => navigate('marketing')} />
-                    )}
-                    {hasPermission('canAccessShopBuilder') && (
-                      <SidebarItem icon={<Globe size={20} />} label="Shop Builder" active={view === 'shop'} onClick={() => navigate('shop')} />
-                    )}
-                  </>}
-                  {role === UserRole.MANAGER && <SidebarItem icon={<Briefcase size={20} />} label="Staff Analytics" active={view === 'staff'} onClick={() => navigate('staff')} />}
-                  {(role === UserRole.PHARMACY || (role === UserRole.MANAGER && user?.employerRole === UserRole.PHARMACY)) && hasPermission('canAccessPrescriptions') && (
-                    <SidebarItem icon={<Pill size={20} />} label="Prescriptions" active={view === 'prescriptions'} onClick={() => navigate('prescriptions')} />
-                  )}
-                  {role === UserRole.ADMIN && <>
-                    <SidebarItem icon={<Users size={20} />} label="User Management" active={view === 'users'} onClick={() => navigate('users')} />
-                    <SidebarItem icon={<Package size={20} />} label="Manage Packages" active={view === 'packages'} onClick={() => navigate('packages')} />
-                    <SidebarItem icon={<DollarSign size={20} />} label="Payment Verification" active={view === 'payment-verification'} onClick={() => navigate('payment-verification')} />
-                  </>}
-                  {(role === UserRole.VENDOR || role === UserRole.PHARMACY) && (
-                    <SidebarItem icon={<DollarSign size={20} />} label="Order Payments" active={view === 'order-verification'} onClick={() => navigate('order-verification')} />
-                  )}
-                </>
-              );
-            })()}
-          </div>
-          <div className="p-4 border-t border-neutral-800 space-y-4">
-            {/* Store Details Section - Show for vendors, pharmacies, and managers */}
-            {(role === UserRole.VENDOR || role === UserRole.PHARMACY || role === UserRole.MANAGER) && user && (
-              <div className="bg-neutral-900 rounded-lg p-3 border border-neutral-800">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-lg bg-neutral-800 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {user.storeLogo ? (
-                      <img src={user.storeLogo} alt={user.storeName || 'Store'} className="w-full h-full object-cover" />
-                    ) : (
-                      <Store className="w-6 h-6 text-orange-600" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-white truncate">{user.storeName || 'Store'}</p>
-                    <p className="text-xs text-neutral-400 truncate">{user.name || 'Admin'}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div className="flex items-center justify-between px-4"><span className="text-xs text-neutral-500 font-medium">Theme</span><button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full bg-neutral-900 text-neutral-400 hover:text-orange-500">{darkMode ? <Sun size={16} /> : <Moon size={16} />}</button></div>
-            <button onClick={localLogout} className="w-full flex items-center gap-3 px-4 py-3 text-neutral-400 hover:bg-neutral-800 hover:text-red-500 rounded-lg mt-2"><LogOut size={20} /><span className="font-medium text-sm">Sign Out</span></button>
-          </div>
-        </aside>
         
         <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
           <header className="bg-white dark:bg-neutral-900 h-16 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between px-6 flex-shrink-0">
@@ -520,6 +395,19 @@ export const App: React.FC = () => {
                   {cart.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-orange-600 rounded-full"></span>}
                 </button>
               )}
+              {/* Dark Mode Toggle */}
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
+                title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                aria-label="Toggle dark mode"
+              >
+                {darkMode ? (
+                  <Sun className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
+                ) : (
+                  <Moon className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
+                )}
+              </button>
               <div className="relative flex items-center gap-3 pl-4 border-l border-neutral-200 dark:border-neutral-800">
                 <button 
                   onClick={() => setIsProfileDropdownOpen(p => !p)} 

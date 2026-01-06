@@ -126,6 +126,8 @@ export interface Product {
   status?: string;
   trackInventory?: boolean;
   unit?: string;
+  branchId?: string; // Branch/outlet identifier for products
+  categoryId?: string; // Reference to item category
 }
 
 // Customer Interface
