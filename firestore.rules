@@ -73,8 +73,12 @@ service cloud.firestore {
         (resource.data.employerId == request.auth.uid)
       );
 
-      // Delete: Admin or Owner deleting staff
-      allow delete: if isAuthenticated() && (isAdmin() || resource.data.employerId == request.auth.uid);
+      // Delete: Admin, Owner deleting staff, or user deleting own account
+      allow delete: if isAuthenticated() && (
+        isAdmin() || 
+        resource.data.employerId == request.auth.uid ||
+        request.auth.uid == userId
+      );
     }
 
     // 2. Pending Staff (Invitations)
@@ -113,6 +117,12 @@ service cloud.firestore {
       
       // Update: Seller (Status updates)
       allow update: if isAuthenticated() && isOwnerOrStaff(resource.data.sellerId);
+      
+      // Delete: Seller or Customer (for account deletion)
+      allow delete: if isAuthenticated() && (
+        isOwnerOrStaff(resource.data.sellerId) ||
+        resource.data.customerId == request.auth.uid
+      );
     }
 
     // 5. Wholesale (Ghala) Catalog
@@ -148,7 +158,7 @@ service cloud.firestore {
     // inventory_adjustments, deliveries, drivers, 
     // credit_applications, wholesale_orders, item_groups, item_categories, item_units
     // expenses, expense_categories, bills, invoices, stock_alerts, alert_settings
-    // warehouse_transfers, delivery_tracking, shop_pages, abandoned_carts
+    // shop_pages
     match /{collection}/{docId} {
       allow read: if isAuthenticated() && 
         collection in ['branches', 'customers', 'suppliers', 'purchase_orders', 
@@ -156,8 +166,7 @@ service cloud.firestore {
                        'drivers', 'credit_applications', 'wholesale_orders',
                        'item_groups', 'item_categories', 'item_units',
                        'expenses', 'expense_categories', 'bills', 'invoices',
-                       'stock_alerts', 'alert_settings', 'warehouse_transfers', 'delivery_tracking',
-                       'shop_pages', 'abandoned_carts'] &&
+                       'stock_alerts', 'alert_settings', 'shop_pages'] &&
         isOwnerOrStaff(resource.data.uid);
 
       allow create: if isAuthenticated() && 
@@ -166,8 +175,7 @@ service cloud.firestore {
                        'drivers', 'credit_applications', 'wholesale_orders',
                        'item_groups', 'item_categories', 'item_units',
                        'expenses', 'expense_categories', 'bills', 'invoices',
-                       'stock_alerts', 'alert_settings', 'warehouse_transfers', 'delivery_tracking',
-                       'shop_pages', 'abandoned_carts'] &&
+                       'stock_alerts', 'alert_settings', 'shop_pages'] &&
         isOwnerOrStaff(request.resource.data.uid);
 
       allow update: if isAuthenticated() && 
@@ -176,8 +184,7 @@ service cloud.firestore {
                        'drivers', 'credit_applications', 'wholesale_orders',
                        'item_groups', 'item_categories', 'item_units',
                        'expenses', 'expense_categories', 'bills', 'invoices',
-                       'stock_alerts', 'alert_settings', 'warehouse_transfers', 'delivery_tracking',
-                       'shop_pages', 'abandoned_carts'] &&
+                       'stock_alerts', 'alert_settings', 'shop_pages'] &&
         isOwnerOrStaff(resource.data.uid) && ownershipNotChanged();
 
       allow delete: if isAuthenticated() && 
@@ -186,9 +193,88 @@ service cloud.firestore {
                        'drivers', 'credit_applications', 'wholesale_orders',
                        'item_groups', 'item_categories', 'item_units',
                        'expenses', 'expense_categories', 'bills', 'invoices',
-                       'stock_alerts', 'alert_settings', 'warehouse_transfers', 'delivery_tracking',
-                       'shop_pages', 'abandoned_carts'] &&
+                       'stock_alerts', 'alert_settings', 'shop_pages'] &&
         isOwnerOrStaff(resource.data.uid);
+    }
+
+    // 7a. Warehouse Transfers (special handling for branch ownership)
+    match /warehouse_transfers/{transferId} {
+      // Helper to check if user owns a branch
+      function ownsBranch(branchUid) {
+        return branchUid != null && 
+               exists(/databases/$(database)/documents/branches/$(branchUid)) &&
+               isOwnerOrStaff(get(/databases/$(database)/documents/branches/$(branchUid)).data.uid);
+      }
+      
+      allow read: if isAuthenticated() && (
+        isOwnerOrStaff(resource.data.uid) ||
+        ownsBranch(resource.data.fromBranchUid) ||
+        ownsBranch(resource.data.toBranchUid)
+      );
+      
+      allow create: if isAuthenticated() && (
+        isOwnerOrStaff(request.resource.data.uid) ||
+        ownsBranch(request.resource.data.fromBranchUid) ||
+        ownsBranch(request.resource.data.toBranchUid)
+      );
+      
+      allow update: if isAuthenticated() && (
+        isOwnerOrStaff(resource.data.uid) ||
+        ownsBranch(resource.data.fromBranchUid) ||
+        ownsBranch(resource.data.toBranchUid)
+      ) && ownershipNotChanged();
+      
+      allow delete: if isAuthenticated() && (
+        isOwnerOrStaff(resource.data.uid) ||
+        ownsBranch(resource.data.fromBranchUid) ||
+        ownsBranch(resource.data.toBranchUid)
+      );
+    }
+
+    // 7b. Delivery Tracking (special handling for driver and order ownership)
+    match /delivery_tracking/{trackingId} {
+      allow read: if isAuthenticated() && (
+        isOwnerOrStaff(resource.data.uid) ||
+        resource.data.driverId == request.auth.uid
+      );
+      
+      allow create: if isAuthenticated() && (
+        isOwnerOrStaff(request.resource.data.uid) ||
+        request.resource.data.driverId == request.auth.uid
+      );
+      
+      allow update: if isAuthenticated() && (
+        isOwnerOrStaff(resource.data.uid) ||
+        resource.data.driverId == request.auth.uid
+      );
+      
+      allow delete: if isAuthenticated() && (
+        isOwnerOrStaff(resource.data.uid) ||
+        resource.data.driverId == request.auth.uid
+      );
+    }
+
+    // 7c. Abandoned Carts (special handling for customer ownership)
+    match /abandoned_carts/{cartId} {
+      allow read: if isAuthenticated() && (
+        isOwnerOrStaff(resource.data.uid) ||
+        resource.data.customerId == request.auth.uid
+      );
+      
+      allow create: if isAuthenticated() && (
+        isOwnerOrStaff(request.resource.data.uid) ||
+        request.resource.data.customerId == request.auth.uid
+      );
+      
+      allow update: if isAuthenticated() && (
+        isOwnerOrStaff(resource.data.uid) ||
+        resource.data.customerId == request.auth.uid
+      ) && ownershipNotChanged();
+      
+      allow delete: if isAuthenticated() && (
+        isOwnerOrStaff(resource.data.uid) ||
+        resource.data.customerId == request.auth.uid
+      );
     }
 
     // 8. Public Shop Pages (read-only for published shops)
