@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Store, Palette, Link, Share2, Copy, Check, QrCode, Eye, Save, X, Upload, Globe, Facebook, Instagram, Twitter, Phone, Mail, MapPin } from 'lucide-react';
 import { useAppContext } from '../hooks/useAppContext';
+import { UserRole } from '../types';
 import { 
   ShopPage,
   createShopPage, 
