@@ -473,26 +473,99 @@ export const Orders: React.FC = () => {
         </div>
       )}
 
-      <div className="space-y-6 animate-fade-in px-4 sm:px-6 pb-10">
-        <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">Orders</h2>
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm min-w-[640px]">
-              <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400"><tr><th className="p-4">Order ID</th><th className="p-4">Customer</th><th className="p-4">Total</th><th className="p-4">Status</th><th className="p-4"></th></tr></thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                {orders.filter(order => !order.voided).length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-8 text-center text-neutral-500 dark:text-neutral-400">
-                      No orders found
-                    </td>
-                  </tr>
-                ) : (
-                  orders.filter(order => !order.voided).map((order) => (
-                  <tr key={order.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-                    <td className="p-4 font-mono text-xs text-neutral-500 dark:text-neutral-400 break-all">{order.id}</td>
-                    <td className="p-4 text-neutral-900 dark:text-white">{order.customerName}</td>
-                    <td className="p-4 text-neutral-900 dark:text-white">TZS {order.total.toLocaleString()}</td>
-                    <td className="p-4">
+      <div className="space-y-4 sm:space-y-6 animate-fade-in px-3 sm:px-4 md:px-6 pb-10">
+        <h2 className="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-white">Orders</h2>
+        
+        {orders.filter(order => !order.voided).length === 0 ? (
+          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm p-8 text-center text-neutral-500 dark:text-neutral-400">
+            No orders found
+          </div>
+        ) : (
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-neutral-50 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400">
+                    <tr>
+                      <th className="p-3 sm:p-4">Order ID</th>
+                      <th className="p-3 sm:p-4">Customer</th>
+                      <th className="p-3 sm:p-4">Total</th>
+                      <th className="p-3 sm:p-4">Status</th>
+                      <th className="p-3 sm:p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                    {orders.filter(order => !order.voided).map((order) => (
+                      <tr key={order.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
+                        <td className="p-3 sm:p-4 font-mono text-xs text-neutral-500 dark:text-neutral-400 break-all">{order.id.slice(-8)}</td>
+                        <td className="p-3 sm:p-4 text-neutral-900 dark:text-white">{order.customerName}</td>
+                        <td className="p-3 sm:p-4 text-neutral-900 dark:text-white font-semibold">TZS {order.total.toLocaleString()}</td>
+                        <td className="p-3 sm:p-4">
+                          {getPaymentStatusText(order.paymentStatus) ? (
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status, order.paymentStatus)}`}>
+                              <XCircle size={12} />
+                              {getPaymentStatusText(order.paymentStatus)}
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
+                              {getStatusIcon(order.status)}
+                              {order.status}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 sm:p-4 text-right">
+                          <div className="flex items-center gap-2 justify-end">
+                            {order.status === 'Delivered' ? (
+                              <button onClick={() => handleViewReceipt(order)} className="text-green-600 dark:text-green-400 text-xs font-medium flex items-center gap-1 hover:underline">
+                                <FileText size={16} />Receipt
+                              </button>
+                            ) : (
+                              <>
+                                {(user?.role === UserRole.VENDOR || user?.role === UserRole.PHARMACY || user?.role === UserRole.ADMIN) && 
+                                 order.status !== 'Cancelled' && 
+                                 !order.courierId && (
+                                  <button 
+                                    onClick={() => handleAssignDriver(order)} 
+                                    className="text-blue-600 dark:text-blue-400 text-xs font-medium flex items-center gap-1 hover:underline"
+                                  >
+                                    <Truck size={16} />Assign
+                                  </button>
+                                )}
+                                <button onClick={() => handleViewDetails(order)} className="text-orange-600 dark:text-orange-400 text-xs font-medium flex items-center gap-1 hover:underline">
+                                  <Eye size={16} />View
+                                </button>
+                                {(user?.role === UserRole.VENDOR || user?.role === UserRole.PHARMACY || user?.role === UserRole.ADMIN) && (
+                                  <button 
+                                    onClick={() => handleDeleteOrder(order)} 
+                                    className="text-red-600 dark:text-red-400 text-xs font-medium flex items-center gap-1 hover:underline"
+                                    title="Delete order"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-3">
+              {orders.filter(order => !order.voided).map((order) => (
+                <div key={order.id} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-mono text-xs text-neutral-500 dark:text-neutral-400 mb-1">#{order.id.slice(-8)}</p>
+                      <p className="font-semibold text-neutral-900 dark:text-white mb-1">{order.customerName}</p>
+                      <p className="text-lg font-bold text-neutral-900 dark:text-white">TZS {order.total.toLocaleString()}</p>
+                    </div>
+                    <div>
                       {getPaymentStatusText(order.paymentStatus) ? (
                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status, order.paymentStatus)}`}>
                           <XCircle size={12} />
@@ -504,53 +577,57 @@ export const Orders: React.FC = () => {
                           {order.status}
                         </span>
                       )}
-                    </td>
-                    <td className="p-4 text-right">
-                      <div className="flex items-center gap-2 justify-end">
-                        {order.status === 'Delivered' ? (
-                          <button onClick={() => handleViewReceipt(order)} className="text-green-600 dark:text-green-400 text-xs font-medium flex items-center gap-1 hover:underline">
-                            <FileText size={16} />Receipt
+                    </div>
+                  </div>
+                  
+                  {order.courierName && (
+                    <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Driver: {order.courierName}
+                    </div>
+                  )}
+                  
+                  <div className="flex flex-col gap-2 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+                    {order.status === 'Delivered' ? (
+                      <button 
+                        onClick={() => handleViewReceipt(order)} 
+                        className="w-full px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                      >
+                        <FileText size={16} /> View Receipt
+                      </button>
+                    ) : (
+                      <>
+                        <button 
+                          onClick={() => handleViewDetails(order)} 
+                          className="w-full px-4 py-2 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                        >
+                          <Eye size={16} /> View Details
+                        </button>
+                        {(user?.role === UserRole.VENDOR || user?.role === UserRole.PHARMACY || user?.role === UserRole.ADMIN) && 
+                         order.status !== 'Cancelled' && 
+                         !order.courierId && (
+                          <button 
+                            onClick={() => handleAssignDriver(order)} 
+                            className="w-full px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                          >
+                            <Truck size={16} /> Assign Driver
                           </button>
-                        ) : (
-                          <>
-                            {(user?.role === UserRole.VENDOR || user?.role === UserRole.PHARMACY || user?.role === UserRole.ADMIN) && 
-                             order.status !== 'Cancelled' && 
-                             !order.courierId && (
-                              <button 
-                                onClick={() => handleAssignDriver(order)} 
-                                className="text-blue-600 dark:text-blue-400 text-xs font-medium flex items-center gap-1 hover:underline"
-                              >
-                                <Truck size={16} />Assign Driver
-                              </button>
-                            )}
-                            {order.courierName && (
-                              <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                                Driver: {order.courierName}
-                              </span>
-                            )}
-                            <button onClick={() => handleViewDetails(order)} className="text-orange-600 dark:text-orange-400 text-xs font-medium flex items-center gap-1 hover:underline">
-                              <Eye size={16} />View
-                            </button>
-                            {(user?.role === UserRole.VENDOR || user?.role === UserRole.PHARMACY || user?.role === UserRole.ADMIN) && (
-                              <button 
-                                onClick={() => handleDeleteOrder(order)} 
-                                className="text-red-600 dark:text-red-400 text-xs font-medium flex items-center gap-1 hover:underline"
-                                title="Delete order"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                        {(user?.role === UserRole.VENDOR || user?.role === UserRole.PHARMACY || user?.role === UserRole.ADMIN) && (
+                          <button 
+                            onClick={() => handleDeleteOrder(order)} 
+                            className="w-full px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                          >
+                            <Trash2 size={16} /> Delete Order
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </>
   );

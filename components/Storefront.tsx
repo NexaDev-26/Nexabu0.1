@@ -745,7 +745,7 @@ export const Storefront: React.FC = () => {
       </div>
 
       {/* Cart Sidebar */}
-      <div className="w-full lg:w-96 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm flex flex-col h-[calc(100vh-120px)] sticky top-24" data-cart-section>
+      <div className="w-full lg:w-96 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm flex flex-col h-auto lg:h-[calc(100vh-120px)] lg:sticky lg:top-24" data-cart-section>
         <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
           <h3 className="font-bold text-neutral-900 dark:text-white flex items-center gap-2">
             <ShoppingCart className="w-5 h-5 text-orange-600" /> 

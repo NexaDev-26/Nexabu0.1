@@ -64,7 +64,7 @@ export const EnhancedSidebar: React.FC<EnhancedSidebarProps> = ({
   setSidebarOpen
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(['recent', 'sales', 'inventory', 'finance-operations']));
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(['favorites', 'recent', 'sales', 'inventory', 'finance-operations-management', 'admin']));
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     const saved = localStorage.getItem('sidebarFavorites');
     return saved ? new Set(JSON.parse(saved)) : new Set(['dashboard', 'inventory', 'orders']);
@@ -230,29 +230,40 @@ export const EnhancedSidebar: React.FC<EnhancedSidebarProps> = ({
 
     const sections: SidebarSection[] = [];
 
-    // Ensure essential core items (Dashboard, Storefront) are accessible via Recent
-    const essentialCoreItems = filteredItems.filter(item => 
-      (item.id === 'dashboard' || item.id === 'storefront' || item.id === 'pos-storefront') &&
-      !categories.recent.find(r => r.id === item.id)
-    );
-    if (essentialCoreItems.length > 0) {
-      categories.recent.unshift(...essentialCoreItems);
+    // 1. Core - Essential navigation (Dashboard, Storefront) - Always visible, expanded by default
+    if (categories.core.length > 0) {
+      sections.push({ id: 'core', label: 'Core', items: categories.core, collapsible: true, defaultCollapsed: false });
     }
 
-    // Only show the 4 requested sections: Recent, Sales & Orders, Inventory, Finance & Operations
+    // 2. Favorites - User's favorite items (collapsed by default)
+    if (categories.favorites.length > 0 && !searchQuery) {
+      sections.push({ id: 'favorites', label: 'Favorites', items: categories.favorites, collapsible: true, defaultCollapsed: true });
+    }
+
+    // 3. Recent - Recently accessed items (collapsed by default)
     if (categories.recent.length > 0 && !searchQuery) {
       sections.push({ id: 'recent', label: 'Recent', items: categories.recent, collapsible: true, defaultCollapsed: true });
     }
+
+    // 4. Sales & Orders - Sales related items (collapsed by default)
     if (categories.sales.length > 0) {
       sections.push({ id: 'sales', label: 'Sales & Orders', items: categories.sales, collapsible: true, defaultCollapsed: true });
     }
+
+    // 5. Inventory - Inventory management (collapsed by default)
     if (categories.inventory.length > 0) {
       sections.push({ id: 'inventory', label: 'Inventory', items: categories.inventory, collapsible: true, defaultCollapsed: true });
     }
-    // Combine Finance and Operations into one section
-    const financeOperationsItems = [...categories.finance, ...categories.operations];
-    if (financeOperationsItems.length > 0) {
-      sections.push({ id: 'finance-operations', label: 'Finance & Operations', items: financeOperationsItems, collapsible: true, defaultCollapsed: true });
+
+    // 6. Finance, Operations & Management - Combined section (collapsed by default)
+    const financeOperationsManagementItems = [...categories.finance, ...categories.operations, ...categories.management];
+    if (financeOperationsManagementItems.length > 0) {
+      sections.push({ id: 'finance-operations-management', label: 'Finance, Operations & Management', items: financeOperationsManagementItems, collapsible: true, defaultCollapsed: true });
+    }
+
+    // 7. Admin - Admin only items (collapsed by default, only visible to admins)
+    if (categories.admin.length > 0) {
+      sections.push({ id: 'admin', label: 'Administration', items: categories.admin, collapsible: true, defaultCollapsed: true });
     }
 
     return sections;
@@ -368,11 +379,11 @@ export const EnhancedSidebar: React.FC<EnhancedSidebarProps> = ({
         className={`${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } ${
-          isCollapsed ? 'w-20' : 'w-64'
-        } fixed lg:static z-30 bg-neutral-950 border-r border-neutral-800 text-white flex flex-col transition-all duration-300 shadow-2xl lg:shadow-none h-full`}
+          isCollapsed ? 'w-20' : 'w-64 sm:w-72'
+        } fixed lg:static z-30 bg-neutral-950 border-r border-neutral-800 text-white flex flex-col transition-all duration-300 shadow-2xl lg:shadow-none h-full touch-none`}
       >
         {/* Header */}
-        <div className="p-6 border-b border-neutral-800 flex items-center justify-between">
+        <div className="p-4 sm:p-6 border-b border-neutral-800 flex items-center justify-between">
           {!isCollapsed && (
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-orange-600 rounded-lg flex items-center justify-center font-bold text-xl">
@@ -405,7 +416,7 @@ export const EnhancedSidebar: React.FC<EnhancedSidebarProps> = ({
 
         {/* Search */}
         {!isCollapsed && (
-          <div className="p-4 border-b border-neutral-800">
+          <div className="p-3 sm:p-4 border-b border-neutral-800">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-neutral-400" />
               <input
@@ -420,7 +431,7 @@ export const EnhancedSidebar: React.FC<EnhancedSidebarProps> = ({
         )}
 
         {/* Menu Items */}
-        <div className="flex-1 p-4 space-y-4 overflow-y-auto custom-scrollbar">
+        <div className="flex-1 p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-y-auto custom-scrollbar overscroll-contain">
           {searchFilteredSections.map((section) => {
             const sectionCollapsed = collapsedSections.has(section.id);
             const shouldShow = !section.collapsible || !sectionCollapsed;

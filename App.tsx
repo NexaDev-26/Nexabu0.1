@@ -374,7 +374,12 @@ export const App: React.FC = () => {
         {user && (role === UserRole.VENDOR || role === UserRole.PHARMACY || role === UserRole.ADMIN || role === UserRole.MANAGER) && (
           <ManageProfile isOpen={isManageProfileOpen} onClose={() => setIsManageProfileOpen(false)} />
         )}
-        {notification && <div className={`fixed top-4 right-4 z-[100] p-3 rounded-xl shadow-2xl border flex items-center gap-3 animate-fade-in ${notification.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}><Bell className="w-4 h-4" />{notification.message}</div>}
+        {notification && (
+          <div className={`fixed top-16 sm:top-4 left-4 right-4 sm:left-auto sm:right-4 z-[100] p-3 sm:p-3 rounded-xl shadow-2xl border flex items-center gap-2 sm:gap-3 animate-fade-in max-w-[calc(100vw-2rem)] sm:max-w-md ${notification.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+            <Bell className="w-4 h-4 flex-shrink-0" />
+            <span className="text-sm sm:text-base truncate">{notification.message}</span>
+          </div>
+        )}
         {isAuthenticated && <OfflineIndicator />}
         
         {/* Enhanced Sidebar */}
@@ -395,10 +400,26 @@ export const App: React.FC = () => {
         )}
         
         <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
-          <header className="bg-white dark:bg-neutral-900 h-16 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between px-6 flex-shrink-0">
-            <div className="flex items-center gap-4"><button onClick={() => setSidebarOpen(true)} className="lg:hidden p-2 -ml-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg"><Menu size={24} /></button><h2 className="text-lg font-semibold capitalize truncate">{view.replace('-', ' ')}</h2></div>
-            <div className="flex items-center gap-4">
-              {(role === UserRole.VENDOR || role === UserRole.PHARMACY) && <button onClick={() => navigate('subscription')} className="hidden sm:block bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-4 py-2 rounded-lg text-sm font-medium">Upgrade</button>}
+          <header className="bg-white dark:bg-neutral-900 h-14 sm:h-16 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between px-3 sm:px-4 md:px-6 flex-shrink-0">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+              <button 
+                onClick={() => setSidebarOpen(true)} 
+                className="lg:hidden p-2 -ml-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg flex-shrink-0"
+                aria-label="Open menu"
+              >
+                <Menu size={20} className="sm:w-6 sm:h-6" />
+              </button>
+              <h2 className="text-base sm:text-lg font-semibold capitalize truncate">{view.replace('-', ' ')}</h2>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+              {(role === UserRole.VENDOR || role === UserRole.PHARMACY) && (
+                <button 
+                  onClick={() => navigate('subscription')} 
+                  className="hidden sm:block bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap"
+                >
+                  Upgrade
+                </button>
+              )}
               {(role === UserRole.CUSTOMER || view === 'storefront') && (
                 <button 
                   className="relative p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors" 
@@ -431,12 +452,12 @@ export const App: React.FC = () => {
                   <Moon className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
                 )}
               </button>
-              <div className="relative flex items-center gap-3 pl-4 border-l border-neutral-200 dark:border-neutral-800">
+              <div className="relative flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-neutral-200 dark:border-neutral-800">
                 <button 
                   onClick={() => setIsProfileDropdownOpen(p => !p)} 
-                  className="flex items-center gap-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg px-2 py-1.5 transition-colors"
+                  className="flex items-center gap-1.5 sm:gap-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 transition-colors"
                 >
-                  <div className="w-9 h-9 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center overflow-hidden flex-shrink-0 border-2 border-orange-200 dark:border-orange-800 relative">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center overflow-hidden flex-shrink-0 border-2 border-orange-200 dark:border-orange-800 relative">
                     {user?.photoURL && user.photoURL.trim() !== '' ? (
                       <img 
                         src={user.photoURL} 
@@ -500,12 +521,13 @@ export const App: React.FC = () => {
               </div>
             </div>
           </header>
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-neutral-50 dark:bg-neutral-950 pb-20 lg:pb-6">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 bg-neutral-50 dark:bg-neutral-950 pb-20 lg:pb-6">
             <SubscriptionStatusBanner />
             {renderContent()}
           </div>
           {/* NeBu Bot - positioned in right corner */}
-          <div className="fixed bottom-4 right-4 z-40"><SmartBot /></div>
+          <div className="fixed bottom-4 right-4 z-40 hidden sm:block"><SmartBot /></div>
+          <div className="fixed bottom-16 right-4 z-40 sm:hidden"><SmartBot /></div>
         </main>
       </div>
     </div>

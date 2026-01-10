@@ -374,29 +374,36 @@ export const Inventory: React.FC = () => {
               <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex gap-4">
                   <div className="relative flex-1 max-w-md">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 w-4 h-4" />
-                      <input type="text" placeholder="Search items or scan barcode..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 p-2 border rounded-lg bg-neutral-50 dark:bg-neutral-950 text-sm outline-none dark:border-neutral-700 dark:text-white" />
+                      <input 
+                        type="text" 
+                        placeholder="Search items or scan barcode..." 
+                        value={searchTerm} 
+                        onChange={e => setSearchTerm(e.target.value)} 
+                        className="w-full pl-10 p-3 sm:p-2 border rounded-lg bg-neutral-50 dark:bg-neutral-950 text-base sm:text-sm outline-none dark:border-neutral-700 dark:text-white" 
+                      />
                   </div>
                   <button onClick={() => setIsScannerOpen(true)} className="px-3 py-2 bg-neutral-100 dark:bg-neutral-800 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300" title="Scan Barcode">
                       <ScanBarcode className="w-5 h-5" />
                   </button>
               </div>
-              <div className="overflow-x-auto">
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto -mx-4 sm:mx-0">
                   <table className="w-full text-left text-sm">
                       <thead className="bg-neutral-50 dark:bg-neutral-950 text-neutral-500">
                           <tr>
-                              <th className="p-4">Product Details</th>
-                              <th className="p-4">Store Name</th>
-                              <th className="p-4">Branch Name</th>
-                              <th className="p-4">Location</th>
-                              <th className="p-4">Barcode</th>
-                              <th className="p-4">Category</th>
-                              <th className="p-4">Unit</th>
-                              <th className="p-4 text-right">Cost (Buying)</th>
-                              <th className="p-4 text-right">Selling Price</th>
-                              <th className="p-4 text-right">Discount Price</th>
-                              <th className="p-4 text-center">Stock</th>
-                              <th className="p-4">Status</th>
-                              <th className="p-4 text-right">Actions</th>
+                              <th className="p-3 sm:p-4">Product Details</th>
+                              <th className="p-3 sm:p-4 hidden lg:table-cell">Store Name</th>
+                              <th className="p-3 sm:p-4 hidden xl:table-cell">Branch Name</th>
+                              <th className="p-3 sm:p-4 hidden xl:table-cell">Location</th>
+                              <th className="p-3 sm:p-4 hidden lg:table-cell">Barcode</th>
+                              <th className="p-3 sm:p-4 hidden lg:table-cell">Category</th>
+                              <th className="p-3 sm:p-4 hidden xl:table-cell">Unit</th>
+                              <th className="p-3 sm:p-4 text-right hidden xl:table-cell">Cost</th>
+                              <th className="p-3 sm:p-4 text-right">Selling Price</th>
+                              <th className="p-3 sm:p-4 text-right hidden lg:table-cell">Discount</th>
+                              <th className="p-3 sm:p-4 text-center">Stock</th>
+                              <th className="p-3 sm:p-4 hidden md:table-cell">Status</th>
+                              <th className="p-3 sm:p-4 text-right">Actions</th>
                           </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -404,13 +411,13 @@ export const Inventory: React.FC = () => {
                             const productBranch = item.branchId ? branches.find(b => b.id === item.branchId) : null;
                             return (
                               <tr key={item.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-                                  <td className="p-4">
-                                    <div className="flex items-start gap-3">
+                                  <td className="p-3 sm:p-4">
+                                    <div className="flex items-start gap-2 sm:gap-3">
                                       {item.image && (
                                         <img 
                                           src={item.image} 
                                           alt={item.name}
-                                          className="w-12 h-12 rounded-lg object-cover bg-neutral-100 dark:bg-neutral-800 flex-shrink-0"
+                                          className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover bg-neutral-100 dark:bg-neutral-800 flex-shrink-0"
                                           onError={(e) => {
                                             const target = e.target as HTMLImageElement;
                                             target.style.display = 'none';
@@ -418,9 +425,9 @@ export const Inventory: React.FC = () => {
                                         />
                                       )}
                                       <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-neutral-900 dark:text-white mb-1">{item.name}</p>
+                                        <p className="font-medium text-neutral-900 dark:text-white mb-1 text-sm sm:text-base">{item.name}</p>
                                         {item.description && (
-                                          <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">
+                                          <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2 hidden lg:block">
                                             {item.description}
                                           </p>
                                         )}
@@ -432,7 +439,7 @@ export const Inventory: React.FC = () => {
                                       </div>
                                     </div>
                                   </td>
-                                  <td className="p-4">
+                                  <td className="p-3 sm:p-4 hidden lg:table-cell">
                                     <div className="flex items-center gap-2">
                                       <Store className="w-4 h-4 text-neutral-400 flex-shrink-0" />
                                       <span className="text-sm font-medium text-neutral-900 dark:text-white">
@@ -440,7 +447,7 @@ export const Inventory: React.FC = () => {
                                       </span>
                                     </div>
                                   </td>
-                                  <td className="p-4">
+                                  <td className="p-3 sm:p-4 hidden xl:table-cell">
                                     {productBranch ? (
                                       <span className="text-sm text-neutral-700 dark:text-neutral-300">
                                         {productBranch.name}
@@ -449,7 +456,7 @@ export const Inventory: React.FC = () => {
                                       <span className="text-xs text-neutral-400 dark:text-neutral-600">—</span>
                                     )}
                                   </td>
-                                  <td className="p-4">
+                                  <td className="p-3 sm:p-4 hidden xl:table-cell">
                                     {storeLocations[item.uid] ? (
                                       <div className="flex items-center gap-1">
                                         <MapPin className="w-3 h-3 text-neutral-400 flex-shrink-0" />
@@ -461,34 +468,36 @@ export const Inventory: React.FC = () => {
                                       <span className="text-xs text-neutral-400 dark:text-neutral-600">—</span>
                                     )}
                                   </td>
-                                  <td className="p-4 font-mono text-xs text-neutral-500">{item.barcode || '-'}</td>
-                                  <td className="p-4 text-xs text-neutral-500">
+                                  <td className="p-3 sm:p-4 font-mono text-xs text-neutral-500 hidden lg:table-cell">{item.barcode || '-'}</td>
+                                  <td className="p-3 sm:p-4 text-xs text-neutral-500 hidden lg:table-cell">
                                       {categories.find(c => c.id === item.categoryId)?.name || item.category || '-'}
                                   </td>
-                                  <td className="p-4 text-xs text-neutral-500">
+                                  <td className="p-3 sm:p-4 text-xs text-neutral-500 hidden xl:table-cell">
                                       {item.unit || '-'}
                                   </td>
-                                  <td className="p-4 text-right">{item.buyingPrice?.toLocaleString() || 0}</td>
-                                  <td className="p-4 text-right font-bold">
+                                  <td className="p-3 sm:p-4 text-right text-sm hidden xl:table-cell">{item.buyingPrice?.toLocaleString() || 0}</td>
+                                  <td className="p-3 sm:p-4 text-right font-bold text-sm">
                                     {item.discountPrice ? `TZS ${item.price.toLocaleString()}` : `TZS ${item.price.toLocaleString()}`}
                                   </td>
-                                  <td className="p-4 text-right">
+                                  <td className="p-3 sm:p-4 text-right hidden lg:table-cell">
                                     {item.discountPrice ? (
                                       <div className="flex flex-col items-end">
                                         <span className="text-xs line-through text-neutral-400">TZS {item.price.toLocaleString()}</span>
-                                        <span className="text-orange-600 font-bold">TZS {item.discountPrice.toLocaleString()}</span>
+                                        <span className="text-orange-600 font-bold text-sm">TZS {item.discountPrice.toLocaleString()}</span>
                                       </div>
                                     ) : (
                                       <span className="text-neutral-500 dark:text-neutral-400">—</span>
                                     )}
                                   </td>
-                                  <td className="p-4 text-center">
+                                  <td className="p-3 sm:p-4 text-center">
                                       <span className={`px-2 py-1 rounded text-xs font-bold ${item.stock < 10 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>{item.stock}</span>
                                   </td>
-                                  <td className="p-4"><span className="text-xs bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded">{item.status}</span></td>
-                                  <td className="p-4 text-right">
-                                      <button onClick={() => { setEditingItem(item); setIsModalOpen(true); }} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-blue-500"><Edit2 className="w-4 h-4"/></button>
-                                      <button onClick={() => deleteRecord('products', item.id)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-red-500"><Trash2 className="w-4 h-4"/></button>
+                                  <td className="p-3 sm:p-4 hidden md:table-cell"><span className="text-xs bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded">{item.status}</span></td>
+                                  <td className="p-3 sm:p-4 text-right">
+                                      <div className="flex items-center justify-end gap-1">
+                                        <button onClick={() => { setEditingItem(item); setIsModalOpen(true); }} className="p-1.5 sm:p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-blue-500" aria-label="Edit"><Edit2 className="w-4 h-4"/></button>
+                                        <button onClick={() => deleteRecord('products', item.id)} className="p-1.5 sm:p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-red-500" aria-label="Delete"><Trash2 className="w-4 h-4"/></button>
+                                      </div>
                                   </td>
                               </tr>
                             );
@@ -496,28 +505,163 @@ export const Inventory: React.FC = () => {
                       </tbody>
                   </table>
               </div>
+              
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3">
+                {filteredItems.map(item => {
+                  const productBranch = item.branchId ? branches.find(b => b.id === item.branchId) : null;
+                  return (
+                    <div key={item.id} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        {item.image && (
+                          <img 
+                            src={item.image} 
+                            alt={item.name}
+                            className="w-16 h-16 rounded-lg object-cover bg-neutral-100 dark:bg-neutral-800 flex-shrink-0"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-neutral-900 dark:text-white mb-1">{item.name}</p>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${item.stock < 10 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                              Stock: {item.stock}
+                            </span>
+                            <span className="text-xs bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">{item.status}</span>
+                          </div>
+                          {item.description && (
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-1">
+                              {item.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">Price</p>
+                          <p className="font-bold text-neutral-900 dark:text-white">
+                            {item.discountPrice ? (
+                              <>
+                                <span className="text-xs line-through text-neutral-400">TZS {item.price.toLocaleString()}</span><br/>
+                                <span className="text-orange-600">TZS {item.discountPrice.toLocaleString()}</span>
+                              </>
+                            ) : (
+                              `TZS ${item.price.toLocaleString()}`
+                            )}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">Store</p>
+                          <p className="text-neutral-900 dark:text-white">{storeNames[item.uid] || '—'}</p>
+                        </div>
+                        {item.barcode && (
+                          <div>
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400">Barcode</p>
+                            <p className="font-mono text-xs text-neutral-900 dark:text-white">{item.barcode}</p>
+                          </div>
+                        )}
+                        {categories.find(c => c.id === item.categoryId) && (
+                          <div>
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400">Category</p>
+                            <p className="text-neutral-900 dark:text-white">{categories.find(c => c.id === item.categoryId)?.name || item.category || '—'}</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-2 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+                        <button 
+                          onClick={() => { setEditingItem(item); setIsModalOpen(true); }} 
+                          className="flex-1 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                        >
+                          <Edit2 className="w-4 h-4"/> Edit
+                        </button>
+                        <button 
+                          onClick={() => deleteRecord('products', item.id)} 
+                          className="flex-1 px-3 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4"/> Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
           </div>
       )}
 
       {/* ADJUSTMENTS TAB */}
       {activeTab === 'adjustments' && (
           <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm overflow-hidden">
-               <table className="w-full text-left text-sm">
-                   <thead className="bg-neutral-50 dark:bg-neutral-950 text-neutral-500">
-                       <tr><th className="p-4">Date</th><th className="p-4">Item</th><th className="p-4">Type</th><th className="p-4">Quantity</th><th className="p-4">Description</th></tr>
-                   </thead>
-                   <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                       {adjustments.map(adj => (
-                           <tr key={adj.id}>
-                               <td className="p-4">{adj.date}</td>
-                               <td className="p-4 font-medium">{adj.productName}</td>
-                               <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${adj.type === 'add' ? 'bg-green-100 text-green-600' : adj.type === 'remove' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>{adj.type.charAt(0).toUpperCase() + adj.type.slice(1)}</span></td>
-                               <td className="p-4 font-mono">{adj.quantity}</td>
-                               <td className="p-4 text-neutral-500">{adj.reason || '-'}</td>
-                           </tr>
-                       ))}
-                   </tbody>
-               </table>
+            {adjustments.length === 0 ? (
+              <div className="p-8 text-center text-neutral-500 dark:text-neutral-400">
+                No adjustments found
+              </div>
+            ) : (
+              <>
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-neutral-50 dark:bg-neutral-950 text-neutral-500">
+                      <tr>
+                        <th className="p-3 sm:p-4">Date</th>
+                        <th className="p-3 sm:p-4">Item</th>
+                        <th className="p-3 sm:p-4">Type</th>
+                        <th className="p-3 sm:p-4">Quantity</th>
+                        <th className="p-3 sm:p-4">Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                      {adjustments.map(adj => (
+                        <tr key={adj.id}>
+                          <td className="p-3 sm:p-4 text-sm">{adj.date}</td>
+                          <td className="p-3 sm:p-4 font-medium">{adj.productName}</td>
+                          <td className="p-3 sm:p-4">
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${adj.type === 'add' ? 'bg-green-100 text-green-600' : adj.type === 'remove' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                              {adj.type.charAt(0).toUpperCase() + adj.type.slice(1)}
+                            </span>
+                          </td>
+                          <td className="p-3 sm:p-4 font-mono">{adj.quantity}</td>
+                          <td className="p-3 sm:p-4 text-neutral-500 text-sm">{adj.reason || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden divide-y divide-neutral-200 dark:divide-neutral-800">
+                  {adjustments.map(adj => (
+                    <div key={adj.id} className="p-4 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-neutral-900 dark:text-white">{adj.productName}</p>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{adj.date}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs font-bold flex-shrink-0 ${adj.type === 'add' ? 'bg-green-100 text-green-600' : adj.type === 'remove' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                          {adj.type.charAt(0).toUpperCase() + adj.type.slice(1)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <div>
+                          <span className="text-neutral-500 dark:text-neutral-400">Qty: </span>
+                          <span className="font-mono font-semibold text-neutral-900 dark:text-white">{adj.quantity}</span>
+                        </div>
+                        {adj.reason && (
+                          <div className="flex-1 min-w-0">
+                            <span className="text-neutral-500 dark:text-neutral-400">Reason: </span>
+                            <span className="text-neutral-900 dark:text-white">{adj.reason}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
       )}
 
@@ -541,13 +685,13 @@ export const Inventory: React.FC = () => {
 
       {/* ADD ITEM MODAL */}
       {isModalOpen && (
-          <div className="fixed inset-0 bg-black/70  flex items-start justify-center p-4 pt-24 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000]">
-              <div className="bg-white dark:bg-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] border border-neutral-200 dark:border-neutral-800 overflow-hidden modal-content">
-                  <div className="p-5 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center">
-                      <h3 className="font-bold text-lg text-neutral-900 dark:text-white">{editingItem.id ? 'Edit Item' : 'Add New Item'}</h3>
-                      <button onClick={() => setIsModalOpen(false)}><X className="w-5 h-5 text-neutral-400"/></button>
+          <div className="fixed inset-0 bg-black/70 flex items-start justify-center p-0 sm:p-4 pt-16 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000] safe-area-inset-top">
+              <div className="bg-white dark:bg-neutral-900 w-full h-full sm:h-auto sm:w-full sm:max-w-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-screen sm:max-h-[90vh] border-0 sm:border border-neutral-200 dark:border-neutral-800 overflow-hidden modal-content">
+                  <div className="p-4 sm:p-5 border-b border-neutral-200 dark:border-neutral-800 flex justify-between items-center flex-shrink-0">
+                      <h3 className="font-bold text-base sm:text-lg text-neutral-900 dark:text-white">{editingItem.id ? 'Edit Item' : 'Add New Item'}</h3>
+                      <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg" aria-label="Close"><X className="w-5 h-5 text-neutral-400"/></button>
                   </div>
-                  <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+                  <div className="p-4 sm:p-6 overflow-y-auto custom-scrollbar space-y-4 sm:space-y-6 flex-1">
                       <div className="flex flex-col sm:flex-row gap-4">
                           <div onClick={() => fileInputRef.current?.click()} className="w-24 h-24 bg-neutral-100 dark:bg-neutral-800 rounded-lg flex items-center justify-center cursor-pointer border-2 border-dashed border-neutral-300 dark:border-neutral-700 hover:border-orange-500">
                               {editingItem.image ? <img src={editingItem.image} className="w-full h-full object-cover rounded-lg" /> : <div className="text-center"><div className="text-xs text-neutral-500">{isUploadingImage ? 'Uploading...' : 'Upload'}</div></div>}
@@ -615,55 +759,112 @@ export const Inventory: React.FC = () => {
                               />
                           </div>
                           <div className="flex-1 space-y-3">
-                              <input type="text" placeholder="Item Name *" value={editingItem.name || ''} onChange={e => setEditingItem({...editingItem, name: e.target.value})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
-                              <textarea placeholder="Description" value={editingItem.description || ''} onChange={e => setEditingItem({...editingItem, description: e.target.value})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white h-14 resize-none" />
+                              <input 
+                                type="text" 
+                                placeholder="Item Name *" 
+                                value={editingItem.name || ''} 
+                                onChange={e => setEditingItem({...editingItem, name: e.target.value})} 
+                                className="w-full p-3 sm:p-2 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white text-base sm:text-sm" 
+                              />
+                              <textarea 
+                                placeholder="Description" 
+                                value={editingItem.description || ''} 
+                                onChange={e => setEditingItem({...editingItem, description: e.target.value})} 
+                                className="w-full p-3 sm:p-2 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white h-20 sm:h-14 resize-none text-base sm:text-sm" 
+                              />
                           </div>
                       </div>
                       
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                            <div>
-                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Group (Optional)</label>
-                               <select value={(editingItem as any).groupId || ''} onChange={e => setEditingItem({...editingItem, [e.target.name || 'groupId']: e.target.value} as any)} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" name="groupId">
+                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1.5 sm:mb-1">Group (Optional)</label>
+                               <select 
+                                 value={(editingItem as any).groupId || ''} 
+                                 onChange={e => setEditingItem({...editingItem, [e.target.name || 'groupId']: e.target.value} as any)} 
+                                 className="w-full p-3 sm:p-2 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white text-base sm:text-sm" 
+                                 name="groupId"
+                               >
                                    <option value="">Select Group</option>
                                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                                </select>
                            </div>
                            <div>
-                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Category</label>
-                               <select value={editingItem.categoryId || ''} onChange={e => setEditingItem({...editingItem, categoryId: e.target.value})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white">
+                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1.5 sm:mb-1">Category</label>
+                               <select 
+                                 value={editingItem.categoryId || ''} 
+                                 onChange={e => setEditingItem({...editingItem, categoryId: e.target.value})} 
+                                 className="w-full p-3 sm:p-2 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white text-base sm:text-sm"
+                               >
                                    <option value="">Select Category</option>
                                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                </select>
                            </div>
                            <div>
-                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Selling Price *</label>
-                               <input type="number" value={editingItem.price || ''} onChange={e => setEditingItem({...editingItem, price: Number(e.target.value)})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
+                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1.5 sm:mb-1">Selling Price *</label>
+                               <input 
+                                 type="number" 
+                                 value={editingItem.price || ''} 
+                                 onChange={e => setEditingItem({...editingItem, price: Number(e.target.value)})} 
+                                 className="w-full p-3 sm:p-2 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white text-base sm:text-sm" 
+                               />
                            </div>
                           <div>
-                              <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Discount Price</label>
-                              <input type="number" value={editingItem.discountPrice || ''} onChange={e => setEditingItem({...editingItem, discountPrice: Number(e.target.value) || undefined})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
-                              <p className="text-[11px] text-neutral-500 mt-1">If set, the selling price will be shown struck-through and this value will be the final price.</p>
+                              <label className="block text-xs font-bold text-neutral-500 uppercase mb-1.5 sm:mb-1">Discount Price</label>
+                              <input 
+                                type="number" 
+                                value={editingItem.discountPrice || ''} 
+                                onChange={e => setEditingItem({...editingItem, discountPrice: Number(e.target.value) || undefined})} 
+                                className="w-full p-3 sm:p-2 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white text-base sm:text-sm" 
+                              />
+                              <p className="text-[11px] text-neutral-500 mt-1 hidden sm:block">If set, the selling price will be shown struck-through and this value will be the final price.</p>
                           </div>
                            <div>
-                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Buying Price</label>
-                               <input type="number" value={editingItem.buyingPrice || ''} onChange={e => setEditingItem({...editingItem, buyingPrice: Number(e.target.value)})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
+                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1.5 sm:mb-1">Buying Price</label>
+                               <input 
+                                 type="number" 
+                                 value={editingItem.buyingPrice || ''} 
+                                 onChange={e => setEditingItem({...editingItem, buyingPrice: Number(e.target.value)})} 
+                                 className="w-full p-3 sm:p-2 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white text-base sm:text-sm" 
+                               />
                            </div>
                            <div>
-                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Opening Stock</label>
-                               <input type="number" value={editingItem.stock || ''} onChange={e => setEditingItem({...editingItem, stock: Number(e.target.value)})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
+                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1.5 sm:mb-1">Opening Stock</label>
+                               <input 
+                                 type="number" 
+                                 value={editingItem.stock || ''} 
+                                 onChange={e => setEditingItem({...editingItem, stock: Number(e.target.value)})} 
+                                 className="w-full p-3 sm:p-2 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white text-base sm:text-sm" 
+                               />
                            </div>
                            <div>
-                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Unit</label>
-                               <select value={editingItem.unit || ''} onChange={e => setEditingItem({...editingItem, unit: e.target.value})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white">
+                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1.5 sm:mb-1">Unit</label>
+                               <select 
+                                 value={editingItem.unit || ''} 
+                                 onChange={e => setEditingItem({...editingItem, unit: e.target.value})} 
+                                 className="w-full p-3 sm:p-2 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white text-base sm:text-sm"
+                               >
                                    <option value="">Select Unit</option>
                                    {units.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                                </select>
                            </div>
                            <div>
-                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Barcode</label>
+                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1.5 sm:mb-1">Barcode</label>
                                <div className="flex gap-2">
-                                   <input type="text" placeholder="Scan or Type" value={editingItem.barcode || ''} onChange={e => setEditingItem({...editingItem, barcode: e.target.value})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
-                                   <button onClick={() => setIsScannerOpen(true)} className="p-2 bg-neutral-100 dark:bg-neutral-800 rounded hover:bg-neutral-200" title="Scan Barcode"><ScanBarcode className="w-4 h-4"/></button>
+                                   <input 
+                                     type="text" 
+                                     placeholder="Scan or Type" 
+                                     value={editingItem.barcode || ''} 
+                                     onChange={e => setEditingItem({...editingItem, barcode: e.target.value})} 
+                                     className="flex-1 p-3 sm:p-2 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white text-base sm:text-sm" 
+                                   />
+                                   <button 
+                                     onClick={() => setIsScannerOpen(true)} 
+                                     className="p-3 sm:p-2 bg-neutral-100 dark:bg-neutral-800 rounded-lg hover:bg-neutral-200 flex-shrink-0 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center" 
+                                     title="Scan Barcode"
+                                     aria-label="Scan Barcode"
+                                   >
+                                     <ScanBarcode className="w-5 h-5 sm:w-4 sm:h-4"/>
+                                   </button>
                                    {editingItem.barcode && (
                                      <button 
                                        onClick={async () => {
@@ -691,9 +892,19 @@ export const Inventory: React.FC = () => {
                           <span className="text-sm dark:text-white">Track Inventory for this item</span>
                       </div>
                   </div>
-                  <div className="p-5 border-t border-neutral-200 dark:border-neutral-800 flex justify-end gap-3">
-                      <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded-lg text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800">Cancel</button>
-                      <button onClick={handleSaveItem} className="px-4 py-2 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-500">Save Item</button>
+                  <div className="p-4 sm:p-5 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row justify-end gap-3 flex-shrink-0">
+                      <button 
+                        onClick={() => setIsModalOpen(false)} 
+                        className="w-full sm:w-auto px-4 py-3 sm:py-2 border rounded-lg text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-base sm:text-sm font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={handleSaveItem} 
+                        className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-500 text-base sm:text-sm"
+                      >
+                        Save Item
+                      </button>
                   </div>
               </div>
           </div>
@@ -701,25 +912,82 @@ export const Inventory: React.FC = () => {
 
       {/* ADJUSTMENT MODAL */}
       {isAdjustmentModalOpen && (
-          <div className="fixed inset-0 bg-black/70  flex items-start justify-center p-4 pt-24 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000]">
-              <div className="bg-white dark:bg-neutral-900 w-full max-w-md rounded-2xl shadow-xl p-6 border border-neutral-200 dark:border-neutral-800 max-h-[90vh] overflow-auto modal-content">
-                  <h3 className="font-bold text-lg mb-4 text-neutral-900 dark:text-white">Inventory Adjustment</h3>
-                  <div className="space-y-4">
-                      <select value={adjustmentForm.productId || ''} onChange={e => setAdjustmentForm({...adjustmentForm, productId: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white">
+          <div className="fixed inset-0 bg-black/70 flex items-start justify-center p-0 sm:p-4 pt-16 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000] safe-area-inset-top">
+              <div className="bg-white dark:bg-neutral-900 w-full h-full sm:h-auto sm:w-full sm:max-w-md sm:rounded-2xl shadow-xl p-4 sm:p-6 border-0 sm:border border-neutral-200 dark:border-neutral-800 max-h-screen sm:max-h-[90vh] overflow-auto modal-content">
+                  <div className="flex items-center justify-between mb-4 sm:mb-4">
+                    <h3 className="font-bold text-base sm:text-lg text-neutral-900 dark:text-white">Inventory Adjustment</h3>
+                    <button onClick={() => setIsAdjustmentModalOpen(false)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg sm:hidden" aria-label="Close"><X className="w-5 h-5 text-neutral-400"/></button>
+                  </div>
+                  <div className="space-y-3 sm:space-y-4">
+                      <select 
+                        value={adjustmentForm.productId || ''} 
+                        onChange={e => setAdjustmentForm({...adjustmentForm, productId: e.target.value})} 
+                        className="w-full p-3 sm:p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white text-base sm:text-sm"
+                      >
                           <option value="">Select Item</option>
                           {items.map(i => <option key={i.id} value={i.id}>{i.name} (Cur: {i.stock})</option>)}
                       </select>
-                      <div className="flex gap-4">
-                          <label className="flex items-center gap-2"><input type="radio" checked={adjustmentForm.type === 'add'} onChange={() => setAdjustmentForm({...adjustmentForm, type: 'add'})} /> Add</label>
-                          <label className="flex items-center gap-2"><input type="radio" checked={adjustmentForm.type === 'remove'} onChange={() => setAdjustmentForm({...adjustmentForm, type: 'remove'})} /> Remove</label>
-                          <label className="flex items-center gap-2"><input type="radio" checked={adjustmentForm.type === 'set'} onChange={() => setAdjustmentForm({...adjustmentForm, type: 'set'})} /> Set</label>
+                      <div className="flex flex-wrap gap-3 sm:gap-4">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="radio" 
+                              checked={adjustmentForm.type === 'add'} 
+                              onChange={() => setAdjustmentForm({...adjustmentForm, type: 'add'})} 
+                              className="w-4 h-4"
+                            /> 
+                            <span className="text-sm sm:text-base">Add</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="radio" 
+                              checked={adjustmentForm.type === 'remove'} 
+                              onChange={() => setAdjustmentForm({...adjustmentForm, type: 'remove'})} 
+                              className="w-4 h-4"
+                            /> 
+                            <span className="text-sm sm:text-base">Remove</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="radio" 
+                              checked={adjustmentForm.type === 'set'} 
+                              onChange={() => setAdjustmentForm({...adjustmentForm, type: 'set'})} 
+                              className="w-4 h-4"
+                            /> 
+                            <span className="text-sm sm:text-base">Set</span>
+                          </label>
                       </div>
-                      <input type="number" placeholder="Quantity" value={adjustmentForm.quantity || ''} onChange={e => setAdjustmentForm({...adjustmentForm, quantity: Number(e.target.value)})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
-                      <input type="date" value={adjustmentForm.date} onChange={e => setAdjustmentForm({...adjustmentForm, date: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
-                      <textarea placeholder="Reason" value={adjustmentForm.reason || ''} onChange={e => setAdjustmentForm({...adjustmentForm, reason: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white h-20" />
-                      <div className="flex gap-3">
-                          <button onClick={() => setIsAdjustmentModalOpen(false)} className="flex-1 py-2 border rounded-lg dark:border-neutral-700">Cancel</button>
-                          <button onClick={handleSaveAdjustment} className="flex-1 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg font-bold">Save</button>
+                      <input 
+                        type="number" 
+                        placeholder="Quantity" 
+                        value={adjustmentForm.quantity || ''} 
+                        onChange={e => setAdjustmentForm({...adjustmentForm, quantity: Number(e.target.value)})} 
+                        className="w-full p-3 sm:p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white text-base sm:text-sm" 
+                      />
+                      <input 
+                        type="date" 
+                        value={adjustmentForm.date} 
+                        onChange={e => setAdjustmentForm({...adjustmentForm, date: e.target.value})} 
+                        className="w-full p-3 sm:p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white text-base sm:text-sm" 
+                      />
+                      <textarea 
+                        placeholder="Reason" 
+                        value={adjustmentForm.reason || ''} 
+                        onChange={e => setAdjustmentForm({...adjustmentForm, reason: e.target.value})} 
+                        className="w-full p-3 sm:p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white h-24 sm:h-20 resize-none text-base sm:text-sm" 
+                      />
+                      <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                          <button 
+                            onClick={() => setIsAdjustmentModalOpen(false)} 
+                            className="w-full sm:flex-1 py-3 sm:py-2 border rounded-lg dark:border-neutral-700 text-base sm:text-sm font-medium"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={handleSaveAdjustment} 
+                            className="w-full sm:flex-1 py-3 sm:py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg font-bold text-base sm:text-sm"
+                          >
+                            Save
+                          </button>
                       </div>
                   </div>
               </div>
@@ -728,15 +996,39 @@ export const Inventory: React.FC = () => {
 
       {/* GENERIC MODAL (Group/Cat/Unit) */}
       {isGenericModalOpen && (
-          <div className="fixed inset-0 bg-black/70  flex items-start justify-center p-4 pt-24 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000]">
-              <div className="bg-white dark:bg-neutral-900 w-full max-w-sm rounded-2xl shadow-xl p-6 border border-neutral-200 dark:border-neutral-800 max-h-[90vh] overflow-auto modal-content">
-                  <h3 className="font-bold text-lg mb-4 capitalize text-neutral-900 dark:text-white">Add/Edit {activeTab.slice(0, -1)}</h3>
-                  <div className="space-y-4">
-                      <input type="text" placeholder="Name" value={genericForm.name || ''} onChange={e => setGenericForm({...genericForm, name: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
-                      <textarea placeholder="Description" value={genericForm.description || ''} onChange={e => setGenericForm({...genericForm, description: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white h-20" />
-                      <div className="flex gap-3">
-                          <button onClick={() => setIsGenericModalOpen(false)} className="flex-1 py-2 border rounded-lg dark:border-neutral-700">Cancel</button>
-                          <button onClick={() => handleGenericSave(`item_${activeTab}`)} className="flex-1 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg font-bold">Save</button>
+          <div className="fixed inset-0 bg-black/70 flex items-start justify-center p-0 sm:p-4 pt-16 sm:pt-20 md:pt-12 lg:pt-8 z-[2147483000] safe-area-inset-top">
+              <div className="bg-white dark:bg-neutral-900 w-full h-full sm:h-auto sm:w-full sm:max-w-sm sm:rounded-2xl shadow-xl p-4 sm:p-6 border-0 sm:border border-neutral-200 dark:border-neutral-800 max-h-screen sm:max-h-[90vh] overflow-auto modal-content">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-base sm:text-lg capitalize text-neutral-900 dark:text-white">Add/Edit {activeTab.slice(0, -1)}</h3>
+                    <button onClick={() => setIsGenericModalOpen(false)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg sm:hidden" aria-label="Close"><X className="w-5 h-5 text-neutral-400"/></button>
+                  </div>
+                  <div className="space-y-3 sm:space-y-4">
+                      <input 
+                        type="text" 
+                        placeholder="Name" 
+                        value={genericForm.name || ''} 
+                        onChange={e => setGenericForm({...genericForm, name: e.target.value})} 
+                        className="w-full p-3 sm:p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white text-base sm:text-sm" 
+                      />
+                      <textarea 
+                        placeholder="Description" 
+                        value={genericForm.description || ''} 
+                        onChange={e => setGenericForm({...genericForm, description: e.target.value})} 
+                        className="w-full p-3 sm:p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white h-24 sm:h-20 text-base sm:text-sm resize-none" 
+                      />
+                      <div className="flex flex-col sm:flex-row gap-3 pt-2 sm:pt-0">
+                          <button 
+                            onClick={() => setIsGenericModalOpen(false)} 
+                            className="w-full sm:flex-1 py-3 sm:py-2 border rounded-lg dark:border-neutral-700 text-base sm:text-sm font-medium"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={() => handleGenericSave(`item_${activeTab}`)} 
+                            className="w-full sm:flex-1 py-3 sm:py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg font-bold text-base sm:text-sm"
+                          >
+                            Save
+                          </button>
                       </div>
                   </div>
               </div>
