@@ -31,7 +31,7 @@ export const Inventory: React.FC = () => {
   
   // Form State
   const [editingItem, setEditingItem] = useState<Partial<Product>>({});
-  const [adjustmentForm, setAdjustmentForm] = useState<Partial<InventoryAdjustment>>({ type: 'Add', date: new Date().toISOString().split('T')[0] });
+  const [adjustmentForm, setAdjustmentForm] = useState<Partial<InventoryAdjustment>>({ type: 'add', date: new Date().toISOString().split('T')[0] });
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
   
   // Generic Form State
@@ -193,6 +193,28 @@ export const Inventory: React.FC = () => {
       };
   }, [isScannerOpen, items, showNotification]);
 
+  // Simulate barcode scan for demo
+  const handleScanSimulate = () => {
+    // Find an item with a barcode, or use a test barcode
+    const itemWithBarcode = items.find(i => i.barcode);
+    const testBarcode = itemWithBarcode?.barcode || 'TEST123456';
+    
+    // Simulate the scan result
+    const found = items.find(i => i.barcode === testBarcode);
+    if (found) {
+      setSearchTerm(found.name);
+      showNotification(`Scanned: ${found.name}`, 'success');
+      setIsScannerOpen(false);
+    } else {
+      showNotification(`Barcode ${testBarcode} not found. Add it as a new product?`, 'info');
+      setSearchTerm(testBarcode);
+      setIsScannerOpen(false);
+      // Open add product modal with barcode pre-filled
+      setEditingItem({ barcode: testBarcode, status: 'Active', trackInventory: true });
+      setIsModalOpen(true);
+    }
+  };
+
   // Filtered items with debounced search
   const filteredItems = useMemo(() => {
     if (!debouncedSearchTerm) return items;
@@ -240,24 +262,25 @@ export const Inventory: React.FC = () => {
   };
 
   const handleSaveAdjustment = async () => {
-      if(!adjustmentForm.itemId || !adjustmentForm.quantity) return;
+      if(!adjustmentForm.productId || !adjustmentForm.quantity) return;
       
       const targetUid = user?.employerId || user?.uid;
-      const item = items.find(i => i.id === adjustmentForm.itemId);
+      const item = items.find(i => i.id === adjustmentForm.productId);
       const qty = Number(adjustmentForm.quantity);
       
       try {
           // 1. Record Adjustment
           await addDoc(collection(db, 'inventory_adjustments'), {
               ...adjustmentForm,
-              itemName: item?.name,
+              productName: item?.name || '',
               uid: targetUid,
-              quantity: qty
+              quantity: qty,
+              productId: adjustmentForm.productId
           });
 
           // 2. Update Stock
           if (item) {
-             const newStock = adjustmentForm.type === 'Add' ? item.stock + qty : item.stock - qty;
+             const newStock = adjustmentForm.type === 'add' ? item.stock + qty : adjustmentForm.type === 'remove' ? item.stock - qty : qty;
              await updateDoc(doc(db, 'products', item.id), { stock: Math.max(0, newStock) });
           }
           
@@ -468,7 +491,8 @@ export const Inventory: React.FC = () => {
                                       <button onClick={() => deleteRecord('products', item.id)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded text-red-500"><Trash2 className="w-4 h-4"/></button>
                                   </td>
                               </tr>
-                          ))}
+                            );
+                          })}
                       </tbody>
                   </table>
               </div>
@@ -486,10 +510,10 @@ export const Inventory: React.FC = () => {
                        {adjustments.map(adj => (
                            <tr key={adj.id}>
                                <td className="p-4">{adj.date}</td>
-                               <td className="p-4 font-medium">{adj.itemName}</td>
-                               <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${adj.type === 'Add' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>{adj.type}</span></td>
+                               <td className="p-4 font-medium">{adj.productName}</td>
+                               <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${adj.type === 'add' ? 'bg-green-100 text-green-600' : adj.type === 'remove' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>{adj.type.charAt(0).toUpperCase() + adj.type.slice(1)}</span></td>
                                <td className="p-4 font-mono">{adj.quantity}</td>
-                               <td className="p-4 text-neutral-500">{adj.description}</td>
+                               <td className="p-4 text-neutral-500">{adj.reason || '-'}</td>
                            </tr>
                        ))}
                    </tbody>
@@ -598,8 +622,8 @@ export const Inventory: React.FC = () => {
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                            <div>
-                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Group</label>
-                               <select value={editingItem.groupId || ''} onChange={e => setEditingItem({...editingItem, groupId: e.target.value})} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white">
+                               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Group (Optional)</label>
+                               <select value={(editingItem as any).groupId || ''} onChange={e => setEditingItem({...editingItem, [e.target.name || 'groupId']: e.target.value} as any)} className="w-full p-2 border rounded dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" name="groupId">
                                    <option value="">Select Group</option>
                                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                                </select>
@@ -681,17 +705,18 @@ export const Inventory: React.FC = () => {
               <div className="bg-white dark:bg-neutral-900 w-full max-w-md rounded-2xl shadow-xl p-6 border border-neutral-200 dark:border-neutral-800 max-h-[90vh] overflow-auto modal-content">
                   <h3 className="font-bold text-lg mb-4 text-neutral-900 dark:text-white">Inventory Adjustment</h3>
                   <div className="space-y-4">
-                      <select value={adjustmentForm.itemId || ''} onChange={e => setAdjustmentForm({...adjustmentForm, itemId: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white">
+                      <select value={adjustmentForm.productId || ''} onChange={e => setAdjustmentForm({...adjustmentForm, productId: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white">
                           <option value="">Select Item</option>
                           {items.map(i => <option key={i.id} value={i.id}>{i.name} (Cur: {i.stock})</option>)}
                       </select>
                       <div className="flex gap-4">
-                          <label className="flex items-center gap-2"><input type="radio" checked={adjustmentForm.type === 'Add'} onChange={() => setAdjustmentForm({...adjustmentForm, type: 'Add'})} /> Add</label>
-                          <label className="flex items-center gap-2"><input type="radio" checked={adjustmentForm.type === 'Remove'} onChange={() => setAdjustmentForm({...adjustmentForm, type: 'Remove'})} /> Remove</label>
+                          <label className="flex items-center gap-2"><input type="radio" checked={adjustmentForm.type === 'add'} onChange={() => setAdjustmentForm({...adjustmentForm, type: 'add'})} /> Add</label>
+                          <label className="flex items-center gap-2"><input type="radio" checked={adjustmentForm.type === 'remove'} onChange={() => setAdjustmentForm({...adjustmentForm, type: 'remove'})} /> Remove</label>
+                          <label className="flex items-center gap-2"><input type="radio" checked={adjustmentForm.type === 'set'} onChange={() => setAdjustmentForm({...adjustmentForm, type: 'set'})} /> Set</label>
                       </div>
                       <input type="number" placeholder="Quantity" value={adjustmentForm.quantity || ''} onChange={e => setAdjustmentForm({...adjustmentForm, quantity: Number(e.target.value)})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
                       <input type="date" value={adjustmentForm.date} onChange={e => setAdjustmentForm({...adjustmentForm, date: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white" />
-                      <textarea placeholder="Reason" value={adjustmentForm.description || ''} onChange={e => setAdjustmentForm({...adjustmentForm, description: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white h-20" />
+                      <textarea placeholder="Reason" value={adjustmentForm.reason || ''} onChange={e => setAdjustmentForm({...adjustmentForm, reason: e.target.value})} className="w-full p-2.5 border rounded-lg dark:bg-neutral-800 dark:border-neutral-700 dark:text-white h-20" />
                       <div className="flex gap-3">
                           <button onClick={() => setIsAdjustmentModalOpen(false)} className="flex-1 py-2 border rounded-lg dark:border-neutral-700">Cancel</button>
                           <button onClick={handleSaveAdjustment} className="flex-1 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg font-bold">Save</button>

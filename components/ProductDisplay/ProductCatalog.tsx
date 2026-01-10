@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { Product, User } from '../../types';
+import { Product, User, Branch } from '../../types';
 import { ProductCard } from './ProductCard';
 
 interface ProductCatalogProps {
@@ -12,6 +12,7 @@ interface ProductCatalogProps {
   cartItems?: Array<{ product: Product; quantity: number }>;
   showStoreInfo?: boolean;
   vendors?: User[];
+  branches?: Branch[];
   className?: string;
 }
 
@@ -21,10 +22,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   cartItems = [],
   showStoreInfo = true,
   vendors = [],
+  branches = [],
   className = ''
 }) => {
   const getVendor = (productUid: string) => {
     return vendors.find(v => v.uid === productUid);
+  };
+
+  const getBranch = (productBranchId?: string) => {
+    if (!productBranchId) return undefined;
+    return branches.find(b => b.id === productBranchId);
   };
 
   if (products.length === 0) {
@@ -45,7 +52,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           onAddToCart={onAddToCart}
           showStoreInfo={showStoreInfo}
           vendor={showStoreInfo ? getVendor(product.uid) : undefined}
-          branch={showStoreInfo ? getBranch(product.uid) : undefined}
+          branch={showStoreInfo ? getBranch(product.branchId) : undefined}
         />
       ))}
     </div>

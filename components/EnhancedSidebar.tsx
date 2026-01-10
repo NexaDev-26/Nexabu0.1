@@ -64,7 +64,7 @@ export const EnhancedSidebar: React.FC<EnhancedSidebarProps> = ({
   setSidebarOpen
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(['recent', 'sales', 'inventory', 'finance-operations']));
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     const saved = localStorage.getItem('sidebarFavorites');
     return saved ? new Set(JSON.parse(saved)) : new Set(['dashboard', 'inventory', 'orders']);
@@ -230,32 +230,29 @@ export const EnhancedSidebar: React.FC<EnhancedSidebarProps> = ({
 
     const sections: SidebarSection[] = [];
 
-    if (categories.favorites.length > 0) {
-      sections.push({ id: 'favorites', label: 'Favorites', items: categories.favorites });
+    // Ensure essential core items (Dashboard, Storefront) are accessible via Recent
+    const essentialCoreItems = filteredItems.filter(item => 
+      (item.id === 'dashboard' || item.id === 'storefront' || item.id === 'pos-storefront') &&
+      !categories.recent.find(r => r.id === item.id)
+    );
+    if (essentialCoreItems.length > 0) {
+      categories.recent.unshift(...essentialCoreItems);
     }
+
+    // Only show the 4 requested sections: Recent, Sales & Orders, Inventory, Finance & Operations
     if (categories.recent.length > 0 && !searchQuery) {
-      sections.push({ id: 'recent', label: 'Recent', items: categories.recent });
-    }
-    if (categories.core.length > 0) {
-      sections.push({ id: 'core', label: 'Core', items: categories.core, collapsible: true, defaultCollapsed: false });
+      sections.push({ id: 'recent', label: 'Recent', items: categories.recent, collapsible: true, defaultCollapsed: true });
     }
     if (categories.sales.length > 0) {
-      sections.push({ id: 'sales', label: 'Sales & Orders', items: categories.sales, collapsible: true, defaultCollapsed: false });
+      sections.push({ id: 'sales', label: 'Sales & Orders', items: categories.sales, collapsible: true, defaultCollapsed: true });
     }
     if (categories.inventory.length > 0) {
-      sections.push({ id: 'inventory', label: 'Inventory', items: categories.inventory, collapsible: true, defaultCollapsed: false });
+      sections.push({ id: 'inventory', label: 'Inventory', items: categories.inventory, collapsible: true, defaultCollapsed: true });
     }
-    if (categories.finance.length > 0) {
-      sections.push({ id: 'finance', label: 'Finance', items: categories.finance, collapsible: true, defaultCollapsed: false });
-    }
-    if (categories.operations.length > 0) {
-      sections.push({ id: 'operations', label: 'Operations', items: categories.operations, collapsible: true, defaultCollapsed: false });
-    }
-    if (categories.management.length > 0) {
-      sections.push({ id: 'management', label: 'Management', items: categories.management, collapsible: true, defaultCollapsed: false });
-    }
-    if (categories.admin.length > 0) {
-      sections.push({ id: 'admin', label: 'Administration', items: categories.admin, collapsible: true, defaultCollapsed: false });
+    // Combine Finance and Operations into one section
+    const financeOperationsItems = [...categories.finance, ...categories.operations];
+    if (financeOperationsItems.length > 0) {
+      sections.push({ id: 'finance-operations', label: 'Finance & Operations', items: financeOperationsItems, collapsible: true, defaultCollapsed: true });
     }
 
     return sections;

@@ -192,7 +192,30 @@ export const App: React.FC = () => {
         safeSubscribe(query(collection(db, "branches")), (s) => setBranches(s.docs.map(d => ({ ...d.data(), id: d.id } as any))));
       } else if (targetUid) {
         safeSubscribe(query(collection(db, "products"), where("uid", "==", targetUid)), (s) => setProducts(s.docs.map(d => ({ ...d.data(), id: d.id } as Product))));
-        safeSubscribe(query(collection(db, "orders"), where("sellerId", "==", targetUid)), (s) => setOrders(s.docs.map(d => ({ ...d.data(), id: d.id } as any))));
+        // Set up orders query with better error handling to prevent Firestore internal assertion errors
+        if (targetUid && typeof targetUid === 'string' && targetUid.trim() !== '') {
+          try {
+            const ordersQuery = query(collection(db, "orders"), where("sellerId", "==", targetUid));
+            const unsubOrders = onSnapshot(
+              ordersQuery,
+              (s) => {
+                try {
+                  setOrders(s.docs.map(d => ({ ...d.data(), id: d.id } as any)));
+                } catch (err) {
+                  console.error("Error processing orders snapshot:", err);
+                }
+              },
+              (err) => {
+                if (err.code !== 'permission-denied') {
+                  console.error("Orders snapshot error:", err);
+                }
+              }
+            );
+            listenersRef.current.push(unsubOrders);
+          } catch (err) {
+            console.error("Error setting up orders query:", err);
+          }
+        }
         safeSubscribe(query(collection(db, "branches"), where("uid", "==", targetUid)), (s) => setBranches(s.docs.map(d => ({ ...d.data(), id: d.id } as any))));
       }
       
