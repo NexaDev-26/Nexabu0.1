@@ -370,8 +370,12 @@ export const EnhancedSidebar: React.FC<EnhancedSidebarProps> = ({
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 z-20 lg:hidden"
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
+          onTouchStart={(e) => {
+            // Prevent sidebar interaction when touching overlay
+            e.stopPropagation();
+          }}
         />
       )}
       
@@ -380,7 +384,12 @@ export const EnhancedSidebar: React.FC<EnhancedSidebarProps> = ({
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } ${
           isCollapsed ? 'w-20' : 'w-64 sm:w-72'
-        } fixed lg:static z-30 bg-neutral-950 border-r border-neutral-800 text-white flex flex-col transition-all duration-300 shadow-2xl lg:shadow-none h-full touch-none`}
+        } fixed lg:static z-50 bg-neutral-950 border-r border-neutral-800 text-white flex flex-col transition-all duration-300 ease-in-out shadow-2xl lg:shadow-none h-full`}
+        style={{ willChange: 'transform' }}
+        onTouchStart={(e) => {
+          // Allow touch events inside sidebar
+          e.stopPropagation();
+        }}
       >
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-neutral-800 flex items-center justify-between">
@@ -407,7 +416,8 @@ export const EnhancedSidebar: React.FC<EnhancedSidebarProps> = ({
             </button>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-2 hover:bg-neutral-800 rounded-lg"
+              className="lg:hidden p-2 hover:bg-neutral-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
+              aria-label="Close sidebar"
             >
               <X size={20} />
             </button>
